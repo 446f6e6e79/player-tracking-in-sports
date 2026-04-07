@@ -30,12 +30,13 @@ jobs:
         uses: xu-cheng/latex-action@v3
         with:
           root_file: report.tex
-          working_directory: docs
+          working_directory: docs/LaTeX
       
       - name: Update PDF in repository
         run: |
           git config user.name "[GitHub Actions]LaTeX Builder Bot"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          mv docs/LaTeX/report.pdf docs/report.pdf
           git add docs/report.pdf
           git commit -m "Update compiled PDF documents" || echo "No changes to commit"
           git push origin main

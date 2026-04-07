@@ -48,7 +48,15 @@
 
       \vspace{1.25cm}
 
-      \includesvg[width=0.7\textwidth]{media/logo.svg}
+      \IfFileExists{../svg-inkscape/logo_svg-tex.pdf_tex}{%
+        \begingroup
+        \graphicspath{{../svg-inkscape/}}%
+        \def\svgwidth{0.7\textwidth}%
+        \input{../svg-inkscape/logo_svg-tex.pdf_tex}%
+        \endgroup
+      }{%
+        \includesvg[width=0.7\textwidth]{../media/logo.svg}%
+      }
 
       \vspace{1cm}
       \HHUGE\textbf{Computer Vision project}
