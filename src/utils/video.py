@@ -9,6 +9,7 @@ def open_video(video_path: str) -> cv2.VideoCapture:
     Returns:
         - cap (cv2.VideoCapture): The VideoCapture object for the video.
     """
+
     if not os.path.exists(video_path):
         raise FileNotFoundError(f"Video not found: {video_path}")
     
@@ -50,3 +51,39 @@ def get_frames(
             frames_gray.append(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
         count += 1
     return frames_color, frames_gray
+
+def save_video(
+        frames: list[cv2.Mat],
+        output_path: str,
+        fps: int = 25
+    ) -> None:
+    """
+    Saves a list of frames as a video file.
+    Parameters:
+        - frames (list[cv2.Mat]): A list of frames to save as a video
+        - output_path (str): The path where the video will be saved.
+        - fps (int): The frames per second for the output video. Default is 25 (Given by the video source).
+    """
+
+    # Get the dimensions of the frames
+    height, width = frames[0].shape[:2]
+
+    # Ensure the output directory exists, otherwise create it
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    # Create a VideoWriter object to write the video file
+    height, width = frames[0].shape[:2]
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+
+    # Initialize the VideoWriter object with the specified output path, codec, fps, and frame size
+    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height), True)
+    if not out.isOpened():
+        raise RuntimeError(f"Could not open VideoWriter for: {output_path}")
+
+    # Write each frame to the video file
+    for frame in frames:
+        out.write(cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR) if frame.ndim == 2 else frame)
+    print(f"Video saved successfully at: {output_path}")
+
+    # Release the VideoWriter object to finalize the video file
+    out.release()
