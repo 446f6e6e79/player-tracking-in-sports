@@ -39,7 +39,6 @@ def MOG2_motion_detection(
 
     return masks
 
-
 def refine_blobs(
     masks: list[cv2.Mat],
     min_area: int = 200,

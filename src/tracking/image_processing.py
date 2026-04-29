@@ -23,7 +23,6 @@ def remove_reflections(
 
     return processed_frames
 
-
 def opening_closing(
         frames: list[cv2.Mat],
         opening_kernel_size: int = 3,
