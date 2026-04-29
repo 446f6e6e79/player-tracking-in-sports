@@ -1,14 +1,24 @@
+# Ignore build artifacts and other generated files
 /build
 .DS_Store
 build/
 /.vscode
 **/.DS_Store
 **/*build*/
+
+# Ignore virtual environment and data/results directories
 .venv/
 data/
 results/
-*.pyc
 
+# Python bytecode files
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+
+
+# Latex intermediate files
 //latex auxiliary files
 *.aux
 *.lof
