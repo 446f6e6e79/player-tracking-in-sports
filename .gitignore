@@ -6,6 +6,7 @@ build/
 **/*build*/
 .venv/
 data/
+results/
 *.pyc
 
 //latex auxiliary files
