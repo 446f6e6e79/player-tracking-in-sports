@@ -2,9 +2,9 @@
 
 [![Report](https://img.shields.io/badge/📄_Report-PDF-blue?style+=for-the-badge)](docs/report.pdf)
 
-**Course:**  Computer Vision  
-**Professors:**   Prof. Nicola Conci, Prof. Giulia Martinelli
-**Authors:** Andrea Blushi, Davide Donà
+**Course:**  Computer Vision    
+**Professors:**   Prof. Nicola Conci, Prof. Giulia Martinelli   
+**Authors:** Andrea Blushi, Davide Donà 
 
 ---
 
