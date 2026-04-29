@@ -32,3 +32,4 @@ __pycache__/
 *.cb
 *.synctex.gz
 *.fdb_latexmk
+yolov8n.pt
