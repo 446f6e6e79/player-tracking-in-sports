@@ -1,6 +1,9 @@
 import os
 import cv2
 
+from src.detection.schema import DetectionOutput
+from src.utils.visualization import draw_detections
+
 def open_video(video_path: str) -> cv2.VideoCapture:
     """
     Given a video file path, opens the video and returns a VideoCapture object.
@@ -18,6 +21,7 @@ def open_video(video_path: str) -> cv2.VideoCapture:
     if not cap.isOpened():
         raise RuntimeError(f"Cannot open video: {video_path}")
     return cap
+
 
 def get_frames(
     cap: cv2.VideoCapture, 
@@ -51,6 +55,7 @@ def get_frames(
             frames_gray.append(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
         count += 1
     return frames_color, frames_gray
+
 
 def save_video(
         frames: list[cv2.Mat],
@@ -87,3 +92,26 @@ def save_video(
 
     # Release the VideoWriter object to finalize the video file
     out.release()
+
+
+def produce_output_video(
+    frames: list[cv2.Mat],
+    detection_output: DetectionOutput,
+    output_path: str,
+    fps: float | None = None,
+    draw_conf: bool = True,
+) -> None:
+    """Produce an annotated output video from frames and a DetectionOutput.
+    Parameters:
+        - frames: list of original BGR frames (must match len(detection_output.frames))
+        - detection_output: DetectionOutput from the detector pipeline
+        - output_path: path for the output MP4
+        - fps: frame rate; falls back to detection_output.fps if None
+        - draw_conf: whether to overlay confidence scores on boxes
+    """
+    out_fps = fps if fps is not None else detection_output.fps
+    annotated = [
+        draw_detections(frame, frame_detections, draw_conf)
+        for frame, frame_detections in zip(frames, detection_output.frames)
+    ]
+    save_video(annotated, output_path, int(out_fps))
