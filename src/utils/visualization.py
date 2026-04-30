@@ -1,7 +1,7 @@
 import cv2
 import matplotlib.pyplot as plt
 
-from src.detection.schema import Frame_Detections
+from src.tracking.schema import Frame_Detections
 
 def show_image(
     frame: cv2.Mat, 

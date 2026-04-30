@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import time
 
-from src.detection.schema import BoundingBox, Detection, Frame_Detections, DetectionOutput
+from src.tracking.schema import BoundingBox, Detection, Frame_Detections, TrackingOutput
 from src.utils.image_processing import (
     normalize_illumination,
     remove_field_pixels,
@@ -84,15 +84,13 @@ def run_mog2_detection(
 
     return masks
 
-def mog2_to_detection_output(
+def mog2_to_tracking_output(
     raw_masks: list[cv2.Mat],
     camera_id: str,
     fps: float,
     source: str = "mog2",
-    class_id: int = 0,
-    class_name: str = "person",
-) -> DetectionOutput:
-    """Convert raw MOG2 binary masks into a DetectionOutput.
+) -> TrackingOutput:
+    """Convert raw MOG2 binary masks into a TrackingOutput.
     One Detection is emitted per connected component (blob); confidence is a constant 1.0
     because MOG2 is a hard binary classifier with no probabilistic score.
     Parameters:
@@ -100,10 +98,8 @@ def mog2_to_detection_output(
         camera_id: identifier for the camera (e.g. "cam_13")
         fps: video frame rate
         source: label for the detector (e.g. "mog2")
-        class_id: class ID assigned to every detection (MOG2 is class-agnostic). Default 0.
-        class_name: human-readable class name assigned to every detection. Default "person".
     Returns:
-        DetectionOutput with one Frame_Detections per input mask.
+        TrackingOutput with one Frame_Detections per input mask.
     """
     # Build the list of FrameDetections for each frame
     frames = []
@@ -124,13 +120,14 @@ def mog2_to_detection_output(
             detections.append(Detection(
                 bbox=BoundingBox(float(x), float(y), float(x + w), float(y + h)),
                 confidence=1.0,
-                class_id=class_id,
-                class_name=class_name,
+                class_id=None,      # MOG2 does not provide class information
+                class_name=None,    # MOG2 does not provide class information
+                track_id=None,      # No tracking in this stage, so track_id is None
             ))
         # Append the FrameDetections for this frame to the list of frames in the output
         frames.append(Frame_Detections(frame_index=frame_index, detections=detections))
 
-    return DetectionOutput(
+    return TrackingOutput(
         source=source,
         camera_id=camera_id,
         fps=fps,
