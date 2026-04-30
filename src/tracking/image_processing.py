@@ -1,26 +1,37 @@
 import cv2
 import numpy as np
 
-def remove_reflections(
+def normalize_illumination(
         frames: list[cv2.Mat],
-        max_brightness: int = 220,
+        clip_limit: float = 2.0,
+        tile_grid_size: tuple[int, int] = (8, 8)
     ) -> list[cv2.Mat]:
     """
-    Reduces specular reflections in a list of BGR frames by clamping the HSV Value channel.
-    Pixels brighter than max_brightness are dimmed to max_brightness; all other pixels are untouched.
+    Normalizes illumination to reduce shadows and specular reflections.
+    Applies CLAHE to the L channel of LAB color space.
     Parameters:
-        - frames: A list of video frames (in BGR format) to process.
-        - max_brightness: Maximum allowed brightness in the Value channel (0-255). Default is 220.
+        - frames: A list of video frames (in BGR format).
+        - clip_limit: CLAHE contrast clip limit. Higher = stronger correction. Default 2.0.
+        - tile_grid_size: Grid size for local histogram computation. Default (8, 8).
     Returns:
-        A list of BGR frames with reflections attenuated.
+        A list of BGR frames with normalized illumination.
     """
+    # Create a CLAHE object with the specified clip limit and tile grid size
+    clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
 
+    # Process each frame
     processed_frames = []
     for frame in frames:
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        hsv[:, :, 2] = np.clip(hsv[:, :, 2], 0, max_brightness)  # Clamp the Value channel to reduce reflections
-        processed_frames.append(cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR))
+        # Convert the frame from BGR to LAB color space
+        lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
 
+        # Apply CLAHE to the L channel to enhance contrast
+        l = clahe.apply(l)
+
+        # Merge the processed L channel back with the original A and B channels, convert back to BGR color space, and store the result
+        processed_frames.append(cv2.cvtColor(cv2.merge((l, a, b)), cv2.COLOR_LAB2BGR))
+        
     return processed_frames
 
 def opening_closing(
