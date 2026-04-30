@@ -40,8 +40,6 @@ def yolo_to_detection_output(
     model: YOLO,
     camera_id: str,
     fps: float,
-    frame_width: int,
-    frame_height: int,
     source: str = "yolo",
 ) -> DetectionOutput:
     """Convert raw YOLO detection results into a DetectionOutput.
@@ -50,11 +48,9 @@ def yolo_to_detection_output(
         model: the YOLO model (used for class name lookup)
         camera_id: identifier for the camera (e.g. "cam_13")
         fps: video frame rate
-        frame_width: frame width in pixels
-        frame_height: frame height in pixels
         source: label for the detector (e.g. "yolo_v8m_pt")
     Returns:
-        DetectionOutput with one FrameDetections per input frame.
+        DetectionOutput with one Frame_Detections per input frame.
     """
     # Build the list of FrameDetections for each frame
     frames = []
@@ -81,7 +77,5 @@ def yolo_to_detection_output(
         source=source,
         camera_id=camera_id,
         fps=fps,
-        frame_width=frame_width,
-        frame_height=frame_height,
         frames=frames,
     )

@@ -38,6 +38,4 @@ class DetectionOutput:
     source: str                 # e.g. "yolo_v8m_pt"
     camera_id: str              # e.g. "cam_1"
     fps: float                  # Frames per second of the original video
-    frame_width: int            # Width of the video frames in pixels
-    frame_height: int           # Height of the video frames in pixels
     frames: list[Frame_Detections] = field(default_factory=list)

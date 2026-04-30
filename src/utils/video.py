@@ -94,7 +94,7 @@ def save_video(
     out.release()
 
 
-def produce_output_video(
+def produce_detection_output_video(
     frames: list[cv2.Mat],
     detection_output: DetectionOutput,
     output_path: str,
