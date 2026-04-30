@@ -17,6 +17,43 @@ def show_image(
     plt.figure();plt.imshow(rgb);plt.title(title);plt.axis("off")
     plt.show()
 
+
+def show_images(
+    frames: list[cv2.Mat], 
+    titles: list[str] | None = None,
+    is_yolo: bool = False
+) -> None:
+    """
+    Displays first, middle, and last images from a list of frames using matplotlib. 
+    The images are expected to be in BGR format.
+    Parameters:
+        - frames: A list of images to display (in BGR format)
+        - titles: An optional list of titles for each image (default is None, which means no titles)
+        - is_yolo: A boolean indicating whether the images are YOLO annotated frames (default is False)
+    """
+    selected_frames_idxs = [0, len(frames)//2, len(frames)-1]
+    _, axes = plt.subplots(1, 3, figsize=(20, 5))
+
+    for i, frame_idx in enumerate(selected_frames_idxs):
+        frame = frames[frame_idx]
+        
+        if is_yolo:
+            # If the frame is a YOLO annotated frame, we need to call the plot() method to get the visualized image
+            frame = frame.plot()
+        # Convert the image from BGR to RGB format for displaying with matplotlib
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        axes[i].imshow(rgb_frame)
+        if titles is not None:
+            axes[i].set_title(titles[i])
+        # Set default title to indicate frame index if titles are not provided
+        else:
+            axes[i].set_title(f"Frame {frame_idx}")
+        axes[i].axis("off")
+    plt.tight_layout()
+    plt.show()
+
+
 def show_hist(
     frame: cv2.Mat, 
     title: str = ""

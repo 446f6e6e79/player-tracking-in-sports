@@ -25,7 +25,7 @@ def run_yolo_tracking(
         result = model.track(
             frame,                  # Input frame for tracking
             persist=True,           # Keep track IDs consistent across frames
-            conf=conf_threshold,               # Confidence threshold for detections
+            conf=conf_threshold,    # Confidence threshold for detections
             tracker=tracker_config  # Use the specified tracker
         )
         # Append the tracking result for this frame to the list of tracked results
