@@ -7,29 +7,22 @@ def run_yolo_detection(
     model: YOLO,
     frames: list,
     conf_threshold: float = 0.3,
+    inference_size: int = 1280,          # Added parameter for flexibility
+    class_ids: list[int] | None = None,  # Restrict detection to these class IDs (None = all classes)
 ) -> list:
-    """Run YOLO detection on a list of color frames and return the raw results.
-    Parameters:
-        model (YOLO): The YOLO model used for detection.
-        frames (list): A list of frames to detect on.
-        conf_threshold (float): The confidence threshold for detections.
-    Returns:
-        list: A list of YOLO result objects, one per frame.
-    """
-
     raw_detected_results = []
     start_time = time.time()
 
     for i, frame in enumerate(frames):
-        # Pure detection: no temporal association, no track IDs
         result = model.predict(
             frame,
             conf=conf_threshold,
-            verbose=False,
+            imgsz=inference_size,   # Increase the inference size for better accuracy
+            classes=class_ids,      # Filter detections to only the specified class IDs (if provided)
+            verbose=False,          # Suppress detailed output for cleaner logs
         )
         raw_detected_results.append(result[0])
 
-        # Print progress every 100 frames
         if (i + 1) % 100 == 0:
             print(f"  Processed {i + 1}/{len(frames)} frames ({(i + 1) / (time.time() - start_time):.1f} fps)")
 
@@ -48,7 +41,7 @@ def yolo_to_detection_output(
         model: the YOLO model (used for class name lookup)
         camera_id: identifier for the camera (e.g. "cam_13")
         fps: video frame rate
-        source: label for the detector (e.g. "yolo_v8m_pt")
+        source: label for the detector (e.g. "yolo_v11m_pt")
     Returns:
         DetectionOutput with one Frame_Detections per input frame.
     """
