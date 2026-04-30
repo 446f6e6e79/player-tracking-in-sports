@@ -14,11 +14,11 @@ def run_mog2_detection(
     frames: list[cv2.Mat],
     learning_rate: float = -1,
     history_length: int = 1000,
-    var_threshold: float = 15,
+    var_threshold: float = 25,
     detect_shadows: bool = False,
     opening_kernel_size: int = 7,
     closing_kernel_size: int = 11,
-    min_area: int = 1000,
+    min_area: int = 1500,
     max_area: int = 200000,
     heat_up_frames: int = 10,
 ) -> list[cv2.Mat]:
@@ -30,20 +30,19 @@ def run_mog2_detection(
     morphological opening/closing → blob area filtering.
     Parameters:
         - frames: A list of video frames (in BGR format) to process for motion detection.
-        - learning_rate: MOG2 background model learning rate. Default -1 (automatic).
+        - learning_rate: MOG2 background model learning rate. Default 0.03.
         - history_length: Number of previous frames used for background modeling. Default 1000.
-        - var_threshold: MOG2 variance threshold for pixel classification. Default 15.
+        - var_threshold: MOG2 variance threshold for pixel classification. Default 25.
         - detect_shadows: Whether MOG2 should detect shadows. Default False.
         - opening_kernel_size: Kernel size for morphological opening. Default 7.
         - closing_kernel_size: Kernel size for morphological closing. Default 11.
-        - min_area: Minimum blob area in pixels to keep. Default 500.
+        - min_area: Minimum blob area in pixels to keep. Default 1500.
         - max_area: Maximum blob area in pixels to keep. Default 200000.
         - heat_up_frames: Number of initial frames to feed into MOG2 without outputting masks, allowing the background model to stabilize. Default 10.
     Returns:
         A list of cleaned binary masks corresponding to each input frame, where white pixels indicate detected motion.
     """
 
-    # Build all stateful objects once outside the loop (CLAHE, MOG2 subtractor and
     # structuring elements should not be recreated on each frame)
     mog2 = cv2.createBackgroundSubtractorMOG2(
         history=history_length,
@@ -59,10 +58,6 @@ def run_mog2_detection(
 
         # MOG2 foreground mask extraction
         mask = mog2.apply(norm_frame, learningRate=learning_rate)
-
-        # During the heat-up period, feed frames into MOG2 to build the background model but skip cleaning/output
-        if i < heat_up_frames:
-            masks.append(np.zeros_like(mask))
 
         # Remove shadows if detect_shadows is True
         if detect_shadows:
@@ -81,6 +76,10 @@ def run_mog2_detection(
 
         if (i + 1) % 100 == 0:
             print(f"  Processed {i + 1}/{len(frames)} frames ({(i + 1) / (time.time() - start_time):.1f} fps)")
+    
+    # Black out the first heat_up_frames to allow MOG2 background model to stabilize without producing noisy masks
+    for i in range(min(heat_up_frames, len(masks))):
+        masks[i][:] = 0
 
     return masks
 

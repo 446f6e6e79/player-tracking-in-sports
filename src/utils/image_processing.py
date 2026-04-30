@@ -32,8 +32,8 @@ def remove_field_pixels(
         frame: cv2.Mat,
         hue_min: int = 5,
         hue_max: int = 40,
-        sat_min: int = 10,
-        val_min: int = 30,
+        sat_min: int = 0,
+        val_min: int = 10,
     ) -> cv2.Mat:
     """
     Single-frame variant of remove_field_pixels. 
