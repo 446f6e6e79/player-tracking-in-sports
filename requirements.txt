@@ -167,3 +167,4 @@ websocket-client==1.9.0
 wheel==0.45.1
 widgetsnbextension==4.0.15
 xyzservices==2025.11.0
+roboflow
