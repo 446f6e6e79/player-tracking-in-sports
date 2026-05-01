@@ -1,7 +1,7 @@
 import os
 import cv2
 
-from src.tracking.schema import TrackingOutput
+from src.types.tracking import TrackingOutput
 from src.utils.visualization import draw_detections
 
 def open_video(video_path: str) -> cv2.VideoCapture:

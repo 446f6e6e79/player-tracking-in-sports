@@ -1,7 +1,7 @@
 from ultralytics import YOLO
 import time
 
-from src.tracking.schema import BoundingBox, Detection, Frame_Detections, TrackingOutput
+from src.types.tracking import BoundingBox, Detection, Frame_Detections, TrackingOutput
 
 def run_yolo_tracking(
     model: YOLO,

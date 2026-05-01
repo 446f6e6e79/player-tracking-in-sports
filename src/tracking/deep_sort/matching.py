@@ -9,7 +9,7 @@ in our short clips, and it leaves the appearance head as a clean follow-up.
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
-from src.tracking.schema import Detection
+from src.types.tracking import Detection
 from src.tracking.deep_sort.track import Track
 
 

@@ -14,7 +14,7 @@ no appearance ReID network, no Mahalanobis-gated cascade by track age.
 """
 import numpy as np
 
-from src.tracking.schema import Detection
+from src.types.tracking import Detection
 from src.tracking.deep_sort.kalman_filter import KalmanFilter
 from src.tracking.deep_sort.matching import min_cost_matching
 from src.tracking.deep_sort.track import Track, xyxy_to_xyah

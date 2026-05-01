@@ -12,7 +12,7 @@ from enum import Enum
 
 import numpy as np
 
-from src.tracking.schema import Detection
+from src.types.tracking import Detection
 from src.tracking.deep_sort.kalman_filter import KalmanFilter
 
 

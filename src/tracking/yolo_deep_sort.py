@@ -18,7 +18,7 @@ from typing import Any
 from ultralytics import YOLO
 
 from src.tracking.deep_sort import DeepSortTracker
-from src.tracking.schema import (
+from src.types.tracking import (
     BoundingBox,
     Detection,
     Frame_Detections,

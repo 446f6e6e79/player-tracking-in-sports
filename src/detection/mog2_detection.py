@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import time
 
-from src.tracking.schema import BoundingBox, Detection, Frame_Detections, TrackingOutput
+from src.types.tracking import BoundingBox, Detection, Frame_Detections, TrackingOutput
 from src.utils.image_processing import (
     normalize_illumination,
     remove_field_pixels,
