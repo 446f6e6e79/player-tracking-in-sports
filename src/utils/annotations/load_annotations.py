@@ -5,7 +5,7 @@ from src.types.tracking import BoundingBox, Detection, Frame_Detections, Trackin
 
 
 def load_annotations(camera_id: str) -> TrackingOutput:
-    """Load ground-truth annotations for a single camera from disk.
+    """Load ground-truth processed annotations for a single camera from disk.
     Annotations are stored as JSON files that already match the TrackingOutput schema,
     so this function is a straightforward deserialisation from dict to dataclasses.
     Parameters:

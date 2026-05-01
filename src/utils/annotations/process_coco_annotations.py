@@ -10,8 +10,7 @@ def process_coco_annotations(
     source: str = "ground_truth",
 ) -> None:
     """
-    Split a COCO annotations dict into per-camera TrackingOutput JSON files.
-
+    Process COCO annotations and write per-camera JSON files compatible with our TrackingOutput schema.
     Transformations applied:
         - Splits annotations by camera, inferred from image file names (e.g. "out2_frame_0001.jpg" → "cam_2")
         - Extracts frame index as an integer (e.g. "frame_0001" → 1)

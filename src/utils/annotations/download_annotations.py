@@ -1,10 +1,8 @@
 import json
-import os
 import shutil
 import tempfile
 from pathlib import Path
 
-from dotenv import load_dotenv
 from roboflow import Roboflow
 
 from src.utils.annotations.process_coco_annotations import process_coco_annotations
@@ -17,19 +15,20 @@ def download_annotations(
     workspace: str,
     project: str,
     version: int,
+    api_key: str,
     output_dir: str | Path,
     split: str = "train",
     type: str = "coco-mmdetection",
 ) -> None:
     """
-    Download the Roboflow COCO annotation JSON into output_dir.
-
-    Skips the download entirely if any JSON file already exists in output_dir.
-    After download, extracts only the COCO JSON and removes the full dataset directory.
+    Download the Roboflow annotation file for the specified dataset
+    After download, if in COCO MMDetection format, the annotations are processed in a compatible way for our evaluation pipeline.
+    Otherwise, the annotation file is copied as-is without processing (e.g. for YOLO format)
     Parameters:
         - workspace (str): Roboflow workspace name
         - project (str): Roboflow project name
         - version (int): dataset version number to download
+        - api_key (str): Roboflow API key
         - output_dir (str | Path): directory where the annotation JSON will be written
         - split (str): dataset split to download (default: "train")
         - type (str): dataset format to download (default: "coco-mmdetection")
@@ -37,20 +36,6 @@ def download_annotations(
         - None (writes _annotations.coco.json to output_dir)
     """
     output_dir = Path(output_dir)
-
-    # Skip if any JSON is already present in the output directory
-    existing_json = list(output_dir.glob("*.json"))
-    if existing_json:
-        print(f"Annotations already present in {output_dir} — skipping download.")
-        return
-
-    # Resolve API key from env if not passed explicitly
-    load_dotenv()
-    api_key = os.environ.get("ANNOTATIONS_API_KEY")
-    if not api_key:
-        raise EnvironmentError(
-            "ANNOTATIONS_API_KEY is not set. Add it to your .env file or pass it explicitly."
-        )
 
     print(f"Downloading dataset {project} v{version} from Roboflow workspace '{workspace}'...")
 
