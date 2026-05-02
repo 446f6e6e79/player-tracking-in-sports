@@ -8,6 +8,7 @@ Lifecycle:
                  -> DELETED once `time_since_update` exceeds `max_age`
     DELETED    : removed from the tracker at the end of the step.
 """
+from collections import deque
 from enum import Enum
 
 import numpy as np
@@ -49,6 +50,8 @@ class Track:
         n_init: int,
         max_age: int,
         detection: Detection,
+        feature: np.ndarray | None = None,
+        feature_budget: int = 100,
     ) -> None:
         self.mean = mean
         self.covariance = covariance
@@ -63,6 +66,12 @@ class Track:
         self.max_age = max_age
         self.last_detection = detection  # carries class_id / class_name into output
 
+        # Rolling gallery of recent appearance embeddings (L2-normalized).
+        # Empty when the tracker is run without an appearance encoder.
+        self.features: deque[np.ndarray] = deque(maxlen=feature_budget)
+        if feature is not None:
+            self.features.append(feature)
+
     def predicted_xyxy(self) -> tuple[float, float, float, float]:
         """Current Kalman-predicted bbox in xyxy."""
         return xyah_to_xyxy(self.mean)
@@ -73,7 +82,12 @@ class Track:
         self.age += 1
         self.time_since_update += 1
 
-    def update(self, kf: KalmanFilter, detection: Detection) -> None:
+    def update(
+        self,
+        kf: KalmanFilter,
+        detection: Detection,
+        feature: np.ndarray | None = None,
+    ) -> None:
         """Apply a matched detection: Kalman update + reset miss counter."""
         measurement = xyxy_to_xyah(detection.get_bbox_tuple())
         self.mean, self.covariance = kf.update(self.mean, self.covariance, measurement)
@@ -81,6 +95,8 @@ class Track:
         self.hits += 1
         self.time_since_update = 0
         self.last_detection = detection
+        if feature is not None:
+            self.features.append(feature)
 
         # Promote out of tentative once we've seen enough consecutive hits.
         if self.state == TrackState.TENTATIVE and self.hits >= self.n_init:

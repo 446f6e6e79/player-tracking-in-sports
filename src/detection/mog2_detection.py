@@ -2,7 +2,7 @@ import cv2
 import time
 
 from src.types.tracking import BoundingBox, Detection, Frame_Detections, TrackingOutput
-from detection.image_processing import (
+from src.detection.image_processing import (
     normalize_illumination,
     opening_closing,
     refine_blobs,
