@@ -12,18 +12,17 @@ class DetectionMetrics:
     f1: float           # harmonic mean of precision and recall
     mean_iou: float     # average IoU over matched pairs
 
-
 @dataclass
 class IdentityMetrics:
     """ID-level metrics (IDF1 family) over the whole sequence.
     GT player identity comes from class_name (e.g. "White_14"); predicted identity from track_id.
     """
-    idtp: int       # ID true positives: number of GT detections correctly identified (IoU > 0.5 with a prediction of the same identity)
-    idfp: int       # ID false positives: number of predicted detections that are IoU > 0.5 with a GT detection of a different identity, or with no GT match
-    idfn: int       # ID false negatives: number of GT detections that are IoU > 0.5 with a predicted detection of a different identity, or with no prediction match
-    idp: float      # ID precision
-    idr: float      # ID recall
-    idf1: float     # harmonic mean of idp and idr
+    tp: int                 # ID true positives: number of GT detections correctly identified (IoU > 0.5 with a prediction of the same identity)
+    fp: int                 # ID false positives: number of predicted detections that are IoU > 0.5 with a GT detection of a different identity, or with no GT match
+    fn: int                 # ID false negatives: number of GT detections that are IoU > 0.5 with a predicted detection of a different identity, or with no prediction match
+    precision: float        # ID precision
+    recall: float           # ID recall
+    f1: float               # harmonic mean of idp and idr
 
 @dataclass
 class HOTAMetrics:
