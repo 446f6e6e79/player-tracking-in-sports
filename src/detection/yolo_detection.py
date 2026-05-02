@@ -9,8 +9,20 @@ def run_yolo_detection(
     frames: list,
     conf_threshold: float = 0.3,
     inference_size: int = 640,
+    iou_threshold: float = 0.45,
     class_ids: list[int] | None = None,  # Restrict detection to these class IDs (None = all classes)
 ) -> list:
+    """Run YOLO detection on a list of frames.
+    Parameters:
+        model: the YOLO model to use for detection
+        frames: list of frames (as numpy arrays) to run detection on
+        conf_threshold: confidence threshold for filtering detections (default 0.3)
+        inference_size: size to which frames are resized for inference (default 640)
+        iou_threshold: IoU threshold for non-max suppression (default 0.45)
+        class_ids: list of class IDs to detect (default None = detect all classes)
+    Returns:
+        List of raw YOLO results (one per frame) as returned by model.predict()
+    """
     raw_results = []
     start_time = time.time()
 
@@ -19,6 +31,7 @@ def run_yolo_detection(
             frame,
             conf=conf_threshold,
             imgsz=inference_size,      # Increase the inference size for better accuracy
+            iou=iou_threshold,         # Set IoU threshold for NMS
             classes=class_ids,         # Filter detections to only the specified class IDs (if provided)
             verbose=False,             # Suppress detailed output for cleaner logs
         )
