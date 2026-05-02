@@ -13,7 +13,7 @@ from enum import Enum
 import numpy as np
 
 from src.types.tracking import Detection
-from src.tracking.deep_sort.kalman_filter import KalmanFilter
+from src.tracking.deep_sort_components.kalman_filter import KalmanFilter
 
 
 class TrackState(Enum):

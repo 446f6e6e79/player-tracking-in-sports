@@ -6,7 +6,7 @@ results.
 """
 from __future__ import annotations
 
-from src.tracking.deep_sort import DeepSortTracker
+from src.tracking.deep_sort_components import DeepSortTracker
 from src.types.tracking import Frame_Detections, TrackingOutput
 
 

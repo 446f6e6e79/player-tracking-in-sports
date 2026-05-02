@@ -10,7 +10,7 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 from src.types.tracking import Detection
-from src.tracking.deep_sort.track import Track
+from src.tracking.deep_sort_components.track import Track
 
 
 def iou(a: np.ndarray, b: np.ndarray) -> np.ndarray:
