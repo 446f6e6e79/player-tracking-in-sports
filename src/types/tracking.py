@@ -23,6 +23,10 @@ class Detection:
         """Returns the bounding box as a tuple (x1, y1, x2, y2)."""
         return (self.bbox.x1, self.bbox.y1, self.bbox.x2, self.bbox.y2)
 
+    def get_int_bbox_tuple(self) -> tuple[int, int, int, int]:
+        """Returns the bounding box as a tuple of integers (x1, y1, x2, y2)."""
+        return tuple(map(int, self.get_bbox_tuple()))
+    
     def get_bbox_numpy(self) -> np.ndarray:
         """Returns the bounding box as a NumPy array [x1, y1, x2, y2]."""
         return np.array([self.bbox.x1, self.bbox.y1, self.bbox.x2, self.bbox.y2], dtype=float)

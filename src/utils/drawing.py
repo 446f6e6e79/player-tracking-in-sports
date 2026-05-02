@@ -81,7 +81,7 @@ def draw_detections(
 
     # For each detection in the frame, draw its bounding box and optionally its confidence score
     for detection in frame_detections.detections:
-        x1, y1, x2, y2 = map(int, detection.get_bbox_tuple())
+        x1, y1, x2, y2 = detection.get_int_bbox_tuple()
         cv2.rectangle(annotated, (x1, y1), (x2, y2), bbox_color, 2)
 
         # If draw_conf is True, overlay the confidence score as text near the bounding box
@@ -105,12 +105,14 @@ def draw_tracked_detections(
     """
     annotated = frame.copy()
     for detection in frame_detections.detections:
-        x1, y1, x2, y2 = map(int, detection.get_bbox_tuple())
+        x1, y1, x2, y2 = detection.get_int_bbox_tuple()
         bbox_color, number = _get_team_color_and_number(detection.class_name)
+        
+        # Draw the bounding box in the team color
         cv2.rectangle(annotated, (x1, y1), (x2, y2), bbox_color, 2)
 
         primary = number if number else detection.class_name
-        track_part = f" #{detection.track_id}" if detection.track_id is not None else ""
+        track_part = f" t_id:{detection.track_id}" if detection.track_id is not None else ""
         caption = f"{primary}{track_part} {detection.confidence:.2f}"
 
         _draw_caption(annotated, x1, y1, caption, bbox_color)
