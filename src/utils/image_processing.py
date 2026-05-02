@@ -27,37 +27,6 @@ def normalize_illumination(
     # Merge the processed L channel back with the original A and B channels, convert back to BGR color space
     return cv2.cvtColor(cv2.merge((l, a, b)), cv2.COLOR_LAB2BGR)
 
-def remove_field_pixels(
-        mask: cv2.Mat,
-        frame: cv2.Mat,
-        hue_min: int = 5,
-        hue_max: int = 40,
-        sat_min: int = 0,
-        val_min: int = 10,
-    ) -> cv2.Mat:
-    """
-    Single-frame variant of remove_field_pixels. 
-    Zeros mask pixels whose underlying BGR pixel falls in the floor-color HSV range.
-    The default HSV range is tuned for a typical indoor parquet floor, but can be adjusted for other surfaces.
-    Parameters:
-        - mask: Binary motion mask to filter.
-        - frame: The corresponding original BGR frame.
-        - hue_min: Minimum hue for the floor color (OpenCV 0-179). Default 5.
-        - hue_max: Maximum hue for the floor color (OpenCV 0-179). Default 40.
-        - sat_min: Minimum saturation. Excludes desaturated white/grey court markings. Default 10.
-        - val_min: Minimum brightness. Excludes genuinely dark shadow pixels we want to keep. Default 30.
-    Returns:
-        A filtered binary mask.
-    """
-    # Convert frame to HSV and split channels for per-pixel hue/sat/val tests
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    h, s, v = cv2.split(hsv)
-
-    # Pixels whose color falls in the floor range are zeroed out of the mask
-    field_mask = (h >= hue_min) & (h <= hue_max) & (s >= sat_min) & (v >= val_min)
-    out = mask.copy()
-    out[field_mask] = 0
-    return out
 
 def opening_closing(
         mask: cv2.Mat,

@@ -1,11 +1,9 @@
 import cv2
-import numpy as np
 import time
 
 from src.types.tracking import BoundingBox, Detection, Frame_Detections, TrackingOutput
 from src.utils.image_processing import (
     normalize_illumination,
-    remove_field_pixels,
     opening_closing,
     refine_blobs,
 )
@@ -62,9 +60,6 @@ def run_mog2_detection(
         # Remove shadows if detect_shadows is True
         if detect_shadows:
             mask[mask == 127] = 0  # Set shadow pixels to black (0)
-
-        # Suppress foreground pixels whose underlying color matches the floor, which helps eliminate shadow blobs on reflective floors
-        mask = remove_field_pixels(mask, frame)
 
         # Morphological opening and closing to clean up the mask
         mask = opening_closing(mask, opening_kernel_size, closing_kernel_size)
