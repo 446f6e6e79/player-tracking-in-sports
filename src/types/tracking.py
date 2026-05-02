@@ -1,4 +1,6 @@
 from dataclasses import dataclass, field
+import numpy as np
+
 
 @dataclass
 class BoundingBox:
@@ -20,6 +22,24 @@ class Detection:
     def get_bbox_tuple(self) -> tuple[float, float, float, float]:
         """Returns the bounding box as a tuple (x1, y1, x2, y2)."""
         return (self.bbox.x1, self.bbox.y1, self.bbox.x2, self.bbox.y2)
+
+    def get_bbox_numpy(self) -> np.ndarray:
+        """Returns the bounding box as a NumPy array [x1, y1, x2, y2]."""
+        return np.array([self.bbox.x1, self.bbox.y1, self.bbox.x2, self.bbox.y2], dtype=float)
+
+    def get_bbox_xywh(self) -> tuple[float, float, float, float]:
+        """Returns the bounding box as a tuple (x, y, width, height)."""
+        return (
+            self.bbox.x1,
+            self.bbox.y1,
+            self.bbox.x2 - self.bbox.x1,
+            self.bbox.y2 - self.bbox.y1,
+        )
+
+
+def dets_to_xywh(detections: list[Detection]) -> list[list[float]]:
+    """Convert Detection objects to XYWH boxes."""
+    return [list(detection.get_bbox_xywh()) for detection in detections]
 
 @dataclass
 class Frame_Detections:

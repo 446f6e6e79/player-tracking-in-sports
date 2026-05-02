@@ -3,7 +3,7 @@ import numpy as np
 import motmetrics as mm
 import trackeval
 
-from src.evaluation.tracking_helpers import _build_accumulator, _build_hota_data
+from src.evaluation.tracking_helpers import build_accumulator, build_hota_data
 from src.types.evaluation import (
     DetectionMetrics,
     EvaluationTrackingResult,
@@ -54,7 +54,7 @@ def compute_identity_metrics(acc: mm.MOTAccumulator) -> IdentityMetrics:
     - False positives (fp): number of predicted detections that are IoU > threshold with a GT detection of a different identity, or with no GT match (including track_id=None detections).
     - False negatives (fn): number of GT detections that are IoU > threshold with a predicted detection of a different identity, or with no prediction match (including track_id=None detections).
     Parameters:
-        - acc: accumulator built by _build_accumulator().
+        - acc: accumulator built by build_accumulator().
     Returns:
         IdentityMetrics with tp, fp, fn, precision, recall, f1, idsw.
     """
@@ -93,7 +93,7 @@ def compute_hota(
             - hota_per_alpha, deta_per_alpha, assa_per_alpha, loca_per_alpha: lists of values at each alpha threshold
     Note: trackeval.metrics.HOTA.eval_sequence() computes HOTA at multiple alpha thresholds (e.g. 0.5, 0.55, ..., 0.95) and returns the average as well as the per-alpha values.
     """
-    data = _build_hota_data(ground_truth, predictions)
+    data = build_hota_data(ground_truth, predictions)
     res  = trackeval.metrics.HOTA().eval_sequence(data)
 
     return HOTAMetrics(
@@ -122,7 +122,7 @@ def evaluate_tracking(
         EvaluationTrackingResult composed of DetectionMetrics, IdentityMetrics, HOTAMetrics.
     """
     # Build a shared accumulator once; all motmetrics-based compute_* functions reuse it
-    acc = _build_accumulator(ground_truth, predictions, iou_threshold)
+    acc = build_accumulator(ground_truth, predictions, iou_threshold)
 
     return EvaluationTrackingResult(
         detection = compute_detection_metrics(acc),

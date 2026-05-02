@@ -8,12 +8,7 @@ if not hasattr(np, "asfarray"):
 
 import motmetrics as mm
 
-from src.types.tracking import Detection, TrackingOutput
-
-
-def _dets_to_xywh(detections: list[Detection]) -> list[list[float]]:
-    """Convert Detection objects to XYWH boxes required by mm.distances.iou_matrix (converts from LTRB)."""
-    return [[d.bbox.x1, d.bbox.y1, d.bbox.x2 - d.bbox.x1, d.bbox.y2 - d.bbox.y1] for d in detections]
+from src.types.tracking import Detection, TrackingOutput, dets_to_xywh
 
 
 def _iter_frame_pairs(
@@ -30,7 +25,7 @@ def _iter_frame_pairs(
         yield frame.frame_index, gt_dets, pred_dets
 
 
-def _build_accumulator(
+def build_accumulator(
     ground_truth: TrackingOutput,
     predictions: TrackingOutput,
     iou_threshold: float,
@@ -71,8 +66,8 @@ def _build_accumulator(
         pred_ids = [d.track_id                    for d in pred_detections]
 
         # mm.distances.iou_matrix expects XYWH boxes; convert from LTRB. Returns NaN for pairs above max_iou_dist.
-        gt_boxes   = _dets_to_xywh(gt_detections)
-        pred_boxes = _dets_to_xywh(pred_detections)
+        gt_boxes   = dets_to_xywh(gt_detections)
+        pred_boxes = dets_to_xywh(pred_detections)
         dist = mm.distances.iou_matrix(gt_boxes, pred_boxes, max_iou=max_iou_dist)
 
         # Update the accumulator with this frame's GT IDs, predicted IDs, and distance matrix
@@ -81,7 +76,7 @@ def _build_accumulator(
     return acc
 
 
-def _build_hota_data(
+def build_hota_data(
     ground_truth: TrackingOutput,
     predictions: TrackingOutput,
 ) -> dict:
@@ -131,7 +126,7 @@ def _build_hota_data(
         # Compute IoU similarity matrix between GT and predicted detections for this frame; shape (N_gt, N_pred)
         if gt_detections and pred_detections:
             # mm.distances.iou_matrix returns distance (1-IoU); invert to get similarity. trackeval expects IoU similarity (not distance)
-            sim = 1.0 - mm.distances.iou_matrix(_dets_to_xywh(gt_detections), _dets_to_xywh(pred_detections), max_iou=1.0)
+            sim = 1.0 - mm.distances.iou_matrix(dets_to_xywh(gt_detections), dets_to_xywh(pred_detections), max_iou=1.0)
         else:
             sim = np.zeros((len(gt_ids), len(pred_ids)), dtype=float)
 

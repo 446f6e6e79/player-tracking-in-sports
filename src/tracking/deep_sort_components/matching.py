@@ -11,19 +11,7 @@ from scipy.optimize import linear_sum_assignment
 
 from src.types.tracking import Detection
 from src.tracking.deep_sort_components.track import Track
-
-
-def iou(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    """IoU between one box `a` (4,) and many boxes `b` (N, 4), all xyxy."""
-    xx1 = np.maximum(a[0], b[:, 0])
-    yy1 = np.maximum(a[1], b[:, 1])
-    xx2 = np.minimum(a[2], b[:, 2])
-    yy2 = np.minimum(a[3], b[:, 3])
-
-    inter = np.maximum(0.0, xx2 - xx1) * np.maximum(0.0, yy2 - yy1)
-    area_a = (a[2] - a[0]) * (a[3] - a[1])
-    area_b = (b[:, 2] - b[:, 0]) * (b[:, 3] - b[:, 1])
-    return inter / (area_a + area_b - inter + 1e-9)
+from src.utils.iou import iou
 
 
 def iou_cost(

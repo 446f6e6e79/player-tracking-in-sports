@@ -1,43 +1,52 @@
-"""Class-agnostic NMS over a TrackingOutput.
-
-YOLO's built-in NMS only suppresses overlaps within the same class. Our
-fine-tuned model emits identity-encoded classes (`Red_5`, `Red_11`, ...) so
-two predictions of the same physical player under different identities both
-survive. We collapse them here with a single greedy IoU pass that ignores
-class names, run after `merge_trackings` and before `apply_deep_sort`.
-"""
-from __future__ import annotations
-
 import numpy as np
 
-from src.tracking.deep_sort_components.matching import iou
+from src.utils.iou import iou
 from src.types.tracking import Detection, Frame_Detections, TrackingOutput
 
 
-def class_agnostic_nms(
+def class_independent_nms(
     tracking_output: TrackingOutput,
     iou_threshold: float = 0.5,
 ) -> TrackingOutput:
-    """Greedy class-agnostic NMS, frame by frame.
-
-    Within each frame, sort detections by confidence descending and keep a
-    box only if its IoU with every already-kept box is below `iou_threshold`.
-    Class names are not consulted — that is the whole point.
+    """
+    Greedy class-independent NMS, frame by frame.
+    For each frame, sort the detections by confidence. Iterate through the detections
+    in descending confidence order, keeping a detection iff its IoU with all previously kept
+    detections is below the `iou_threshold`.
+    
+    Parameters:
+        - tracking_output: The input TrackingOutput containing frames and detections.
+        - iou_threshold: IoU threshold for suppressing overlapping detections (default 0.5).
+    
+    Returns:
+        - A new TrackingOutput with the same structure but with detections filtered by NMS.
     """
     new_frames: list[Frame_Detections] = []
-    for fd in tracking_output.frames:
-        ordered = sorted(fd.detections, key=lambda d: d.confidence, reverse=True)
+
+    for frame_detections in tracking_output.frames:
+        # Sort all detections in the frame by confidence in descending order
+        ordered_detections = sorted(frame_detections.detections, key=lambda d: d.confidence, reverse=True)
+        
+        #List of kept detections
         kept: list[Detection] = []
-        kept_boxes: list[tuple[float, float, float, float]] = []
-        for d in ordered:
-            box = d.get_bbox_tuple()
+        # List of bounding boxes of kept detections, used for IoU comparison
+        kept_boxes: list[np.ndarray] = []
+        
+        for detection in ordered_detections:
+            # Get the bounding box of the current detection as a numpy array
+            box = detection.get_bbox_numpy()
+            
+            # If there are already kept boxes, compute IoU of the current box with all kept boxes
             if kept_boxes:
-                ious = iou(np.asarray(box, dtype=float), np.asarray(kept_boxes, dtype=float))
+                ious = iou(box, np.array(kept_boxes))
                 if ious.max() >= iou_threshold:
                     continue
-            kept.append(d)
+            
+            # If we reach here, we keep the detection and add its box to the list of kept boxes
+            kept.append(detection)
             kept_boxes.append(box)
-        new_frames.append(Frame_Detections(frame_index=fd.frame_index, detections=kept))
+        
+        new_frames.append(Frame_Detections(frame_index=frame_detections.frame_index, detections=kept))
 
     return TrackingOutput(
         source=tracking_output.source,
