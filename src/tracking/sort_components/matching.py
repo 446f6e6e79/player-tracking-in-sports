@@ -14,7 +14,7 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 from src.types.tracking import Detection
-from src.tracking.deep_sort_components.track import Track
+from src.tracking.sort_components.track import Track
 from src.utils.iou import iou
 
 

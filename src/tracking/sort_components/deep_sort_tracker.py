@@ -16,10 +16,10 @@ Algorithm (one call to `update(detections, frame)` per video frame):
 import numpy as np
 
 from src.types.tracking import Detection
-from src.tracking.deep_sort_components.appearance import AppearanceEncoder
-from src.tracking.deep_sort_components.kalman_filter import KalmanFilter
-from src.tracking.deep_sort_components.matching import matching_cascade, min_cost_matching
-from src.tracking.deep_sort_components.track import Track, xyxy_to_xyah
+from src.tracking.sort_components.appearance import AppearanceEncoder
+from src.tracking.sort_components.kalman_filter import KalmanFilter
+from src.tracking.sort_components.matching import matching_cascade, min_cost_matching
+from src.tracking.sort_components.track import Track, xyxy_to_xyah
 
 
 class DeepSortTracker:
@@ -32,6 +32,7 @@ class DeepSortTracker:
         n_init: int = 3,
         feature_budget: int = 100,
     ) -> None:
+        """Simple DeepSORT implementation. See `update()` for the main algorithm."""
         self.encoder = encoder
         self.max_iou_distance = max_iou_distance
         self.max_appearance_distance = max_appearance_distance

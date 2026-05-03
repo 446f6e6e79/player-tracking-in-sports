@@ -1,15 +1,6 @@
-"""Apply the DeepSORT tracker to a detection-only TrackingOutput.
-
-`apply_deep_sort` runs as post-processing on already-detected frames — the
-notebook calls it after merging the two-pass (player + ball) detection results.
-
-This is always the appearance-aware DeepSORT path: per-track gallery of
-ResNet18 embeddings + time-since-update matching cascade. The IoU-only SORT
-baseline that used to live here has been removed.
-"""
 import numpy as np
 
-from src.tracking.deep_sort_components import AppearanceEncoder, DeepSortTracker
+from src.tracking.sort_components import AppearanceEncoder, DeepSortTracker
 from src.types.tracking import Frame_Detections, TrackingOutput
 
 
@@ -18,21 +9,22 @@ def apply_deep_sort(
     frames: list[np.ndarray],
     *,
     encoder: AppearanceEncoder | None = None,
-    max_iou_distance: float = 0.7,
+    max_iou_distance: float = 0.8,
     max_appearance_distance: float = 0.2,
-    max_age: int = 30,
-    n_init: int = 3,
+    max_age: int = 60,
+    n_init: int = 2,
     feature_budget: int = 100,
 ) -> TrackingOutput:
-    """Run a fresh DeepSortTracker over a detection-only TrackingOutput.
-
-    `frames` is the list of BGR images, indexed by `frame_index`. Frames must
-    be in monotonic frame_index order (we sort defensively). Existing
-    track_ids on the input are ignored — DeepSORT re-assigns them. Unmatched
-    detections are dropped.
-
-    If `encoder` is None, a fresh `AppearanceEncoder` (ResNet18 ImageNet
-    weights, auto-picked device) is built internally.
+    """
+    Run a fresh DeepSortTracker over a detection-only TrackingOutput.
+    Parameters:
+    - tracking_output: The input detections to track.
+    - frames: The list of BGR images, indexed by `frame_index`.
+    - encoder: Optional AppearanceEncoder. If None, a default one is created.
+    - max_iou_distance: Maximum IOU distance for matching.
+    - max_appearance_distance: Maximum appearance distance for matching.
+    - max_age: Maximum number of frames to keep "alive" without matches.
+    - n_init: Number of consecutive matches needed to confirm a track.
     """
     if encoder is None:
         encoder = AppearanceEncoder()
