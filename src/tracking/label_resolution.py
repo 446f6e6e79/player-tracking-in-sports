@@ -1,7 +1,7 @@
 from collections import defaultdict
 from dataclasses import replace
 
-from src.types.tracking import Detection, Frame_Detections, TrackingOutput
+from src.types.tracking import FrameTrackedDetections, TrackedDetection, TrackingOutput
 
 BALL_CLASS = "Ball"
 
@@ -27,11 +27,6 @@ def _rank_labels_per_track(
 
     for frame_detection in tracking_output.frames:
         for detection in frame_detection.detections:
-            # Skip detections without a track_id
-            if detection.track_id is None:
-                continue
-            
-            # Get the track_id and confidence for this detection
             track_id = detection.track_id
             class_name = detection.class_name
             confidence = detection.confidence
@@ -93,12 +88,12 @@ def _assign_stable_labels(
     return resolved
 
 
-def _dedupe_within_frame(detections: list[Detection]) -> list[Detection]:
+def _dedupe_within_frame(detections: list[TrackedDetection]) -> list[TrackedDetection]:
     """Remove duplicate detections of the same class within a single frame, keeping only the one with the highest confidence."""
     # Map from class_name to the best detection of that class in this frame
-    best_by_label: dict[str, Detection] = {}
+    best_by_label: dict[str, TrackedDetection] = {}
     # List of detections to keep (all ball detections + best non-ball detections)
-    survivors: list[Detection] = []
+    survivors: list[TrackedDetection] = []
 
     for detection in detections:
         # Keep all ball detections
@@ -134,11 +129,11 @@ def resolve_track_labels(tracking_output: TrackingOutput) -> TrackingOutput:
     ranked, length_by_track = _rank_labels_per_track(tracking_output)
     resolved = _assign_stable_labels(ranked, length_by_track)
 
-    new_frames: list[Frame_Detections] = []
+    new_frames: list[FrameTrackedDetections] = []
     for fd in tracking_output.frames:
-        rewritten: list[Detection] = []
+        rewritten: list[TrackedDetection] = []
         for detection in fd.detections:
-            if detection.track_id is None or detection.track_id not in resolved:
+            if detection.track_id not in resolved:
                 rewritten.append(detection)
                 continue
             stable = resolved[detection.track_id]
@@ -146,9 +141,9 @@ def resolve_track_labels(tracking_output: TrackingOutput) -> TrackingOutput:
                 rewritten.append(detection)
             else:
                 rewritten.append(replace(detection, class_name=stable))
-        
+
         rewritten = _dedupe_within_frame(rewritten)
-        new_frames.append(Frame_Detections(frame_index=fd.frame_index, detections=rewritten))
+        new_frames.append(FrameTrackedDetections(frame_index=fd.frame_index, detections=rewritten))
 
     return TrackingOutput(
         source=tracking_output.source,

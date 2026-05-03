@@ -1,7 +1,7 @@
 import os
 import cv2
 
-from src.types.tracking import TrackingOutput
+from src.types.tracking import DetectionOutput, TrackingOutput
 from src.utils.drawing import draw_detections, draw_tracked_detections
 
 def open_video(video_path: str) -> cv2.VideoCapture:
@@ -96,15 +96,15 @@ def save_video(
 
 def produce_detection_output_video(
     frames: list[cv2.Mat],
-    detection_output: TrackingOutput,
+    detection_output: DetectionOutput,
     output_path: str,
     fps: float | None = None,
     draw_conf: bool = True,
 ) -> None:
-    """Produce an annotated output video from frames and a detection-only output.
+    """Produce an annotated output video from frames and a pre-tracking detection output.
     Parameters:
         - frames: list of original BGR frames (must match len(detection_output.frames))
-        - detection_output: per-frame detections (TrackingOutput container, no track_ids needed)
+        - detection_output: per-frame detections (no track_ids)
         - output_path: path for the output MP4
         - fps: frame rate; falls back to detection_output.fps if None
         - draw_conf: whether to overlay confidence scores on boxes
@@ -119,11 +119,12 @@ def produce_detection_output_video(
 
 def produce_tracking_output_video(
     frames: list[cv2.Mat],
-    tracking_output: TrackingOutput,
+    output: DetectionOutput | TrackingOutput,
     output_path: str,
     fps: float | None = None,
 ) -> None:
-    """Produce an annotated output video from frames and a tracked output.
+    """Produce an annotated output video from frames and either a detection or
+    tracking output — the detection variant simply omits the '#track_id' caption.
 
     Bounding boxes are colored by team (Ball=yellow, Red=red, White=white,
     Referee=orange). Each box is captioned just above its top edge with
@@ -132,14 +133,14 @@ def produce_tracking_output_video(
     'Ball'); unknown labels fall back to a gray box with the raw class name.
 
     Parameters:
-        - frames: list of original BGR frames (must match len(tracking_output.frames))
-        - tracking_output: per-frame tracked detections (track_id populated where available)
+        - frames: list of original BGR frames (must match len(output.frames))
+        - output: per-frame detections — DetectionOutput or TrackingOutput
         - output_path: path for the output MP4
-        - fps: frame rate; falls back to tracking_output.fps if None
+        - fps: frame rate; falls back to output.fps if None
     """
-    out_fps = fps if fps is not None else tracking_output.fps
+    out_fps = fps if fps is not None else output.fps
     annotated = [
         draw_tracked_detections(frame, frame_detections)
-        for frame, frame_detections in zip(frames, tracking_output.frames)
+        for frame, frame_detections in zip(frames, output.frames)
     ]
     save_video(annotated, output_path, int(out_fps))

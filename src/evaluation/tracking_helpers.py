@@ -15,13 +15,10 @@ def _iter_frame_pairs(
     ground_truth: TrackingOutput,
     pred_index: dict[int, list[Detection]],
 ) -> Iterator[tuple[int, list[Detection], list[Detection]]]:
-    """Yield (frame_index, gt_detections, pred_detections) for each GT frame.
-    pred_detections contains only detections with a valid track_id; detections with track_id=None are excluded.
-    """
+    """Yield (frame_index, gt_detections, pred_detections) for each GT frame."""
     for frame in ground_truth.frames:
         gt_dets = frame.detections
-        # Only consider predicted detections with a valid track_id (identity) for matching; ignore others
-        pred_dets = [d for d in pred_index.get(frame.frame_index, []) if d.track_id is not None]
+        pred_dets = pred_index.get(frame.frame_index, [])
         yield frame.frame_index, gt_dets, pred_dets
 
 
@@ -33,12 +30,12 @@ def build_accumulator(
     """Build a motmetrics accumulator over all GT-annotated frames.
     This accumulator is a basic data structure that stores information across the all frames
     It accumulates:
-        - GT identities derived from class_name (e.g. "White_14") since GT track_ids are None.
-        - Predicted identities from track_id, excluding detections with track_id=None since they carry no identity.
+        - GT identities derived from class_name (e.g. "White_14") — the canonical identity in our annotation files.
+        - Predicted identities from track_id.
         - IoU distance matrix for each frame, with pairs below the iou_threshold excluded via NaN.
     Parameters:
         - ground_truth: TrackingOutput from annotation files.
-        - predictions: TrackingOutput from a tracker with track_id populated.
+        - predictions: TrackingOutput from a tracker.
         - iou_threshold: minimum IoU for a match; pairs below this are excluded.
     Returns:
         Populated MOTAccumulator ready for metric computation.
@@ -59,7 +56,6 @@ def build_accumulator(
     # MOT Accumulator with auto_id=False since we manage IDs manually; this allows us to use class_name for GT identity and track_id for predicted identity
     acc = mm.MOTAccumulator(auto_id=False)
 
-    # Map predicted track_id to integer ID if not seen before; skip detections with track_id=None
     for frame_index, gt_detections, pred_detections in _iter_frame_pairs(ground_truth, pred_index):
         # Build ID arrays for this frame based on GT class_name and predicted track_id
         gt_ids   = [gt_class_to_id[d.class_name] for d in gt_detections]
@@ -82,12 +78,11 @@ def build_hota_data(
 ) -> dict:
     """
     Build the data dict expected by trackeval.metrics.HOTA.eval_sequence().
-    GT player identity is resolved via class_name (e.g. "White_14") mapped to a stable integer ID
+    GT player identity is resolved via class_name (e.g. "White_14") mapped to a stable integer ID.
     Predicted identity uses track_id (already integer).
-    Predictions with track_id=None are excluded because they carry no identity.
     Parameters:
         - ground_truth: TrackingOutput from annotation files (source="ground_truth").
-        - predictions: TrackingOutput from a tracker with track_id populated.
+        - predictions: TrackingOutput from a tracker.
     Returns:
         Dict with keys: num_timesteps, num_gt_ids, num_tracker_ids, num_gt_dets,
         num_tracker_dets, gt_ids, tracker_ids, similarity_scores.
@@ -106,8 +101,7 @@ def build_hota_data(
             if detection.class_name not in gt_class_to_id:
                 gt_class_to_id[detection.class_name] = len(gt_class_to_id)
         for detection in pred_index.get(frame.frame_index, []):
-            # Map predicted track_id to integer ID if not seen before; skip detections with track_id=None
-            if detection.track_id is not None and detection.track_id not in pred_track_to_id:
+            if detection.track_id not in pred_track_to_id:
                 pred_track_to_id[detection.track_id] = len(pred_track_to_id)
 
     # Build lists of GT IDs, tracker IDs, and similarity scores (IoU) for each frame

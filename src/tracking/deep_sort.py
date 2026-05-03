@@ -1,11 +1,11 @@
 import numpy as np
 
 from src.tracking.sort_components import AppearanceEncoder, DeepSortTracker
-from src.types.tracking import Frame_Detections, TrackingOutput
+from src.types.tracking import DetectionOutput, FrameTrackedDetections, TrackingOutput
 
 
 def apply_deep_sort(
-    tracking_output: TrackingOutput,
+    detection_output: DetectionOutput,
     frames: list[np.ndarray],
     *,
     encoder: AppearanceEncoder | None = None,
@@ -16,9 +16,9 @@ def apply_deep_sort(
     feature_budget: int = 100,
 ) -> TrackingOutput:
     """
-    Run a fresh DeepSortTracker over a detection-only TrackingOutput.
+    Run a fresh DeepSortTracker over a DetectionOutput.
     Parameters:
-    - tracking_output: The input detections to track.
+    - detection_output: The input detections to track.
     - frames: The list of BGR images, indexed by `frame_index`.
     - encoder: Optional AppearanceEncoder. If None, a default one is created.
     - max_iou_distance: Maximum IOU distance for matching.
@@ -37,14 +37,14 @@ def apply_deep_sort(
         n_init=n_init,
         feature_budget=feature_budget,
     )
-    new_frames: list[Frame_Detections] = []
-    for fd in sorted(tracking_output.frames, key=lambda f: f.frame_index):
+    new_frames: list[FrameTrackedDetections] = []
+    for fd in sorted(detection_output.frames, key=lambda f: f.frame_index):
         tracked = tracker.update(list(fd.detections), frames[fd.frame_index])
-        new_frames.append(Frame_Detections(frame_index=fd.frame_index, detections=tracked))
+        new_frames.append(FrameTrackedDetections(frame_index=fd.frame_index, detections=tracked))
 
     return TrackingOutput(
-        source=tracking_output.source,
-        camera_id=tracking_output.camera_id,
-        fps=tracking_output.fps,
+        source=detection_output.source,
+        camera_id=detection_output.camera_id,
+        fps=detection_output.fps,
         frames=new_frames,
     )

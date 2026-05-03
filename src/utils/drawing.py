@@ -1,6 +1,6 @@
 import cv2
 
-from src.types.tracking import Frame_Detections
+from src.types.tracking import FrameDetections, FrameTrackedDetections
 
 
 # BGR colors for the four label groups produced by the fine-tuned model.
@@ -64,13 +64,13 @@ def _draw_caption(
 
 def draw_detections(
     frame: cv2.Mat,
-    frame_detections: Frame_Detections,
+    frame_detections: FrameDetections,
     draw_conf: bool = True,
 ) -> cv2.Mat:
-    """Given a frame and its corresponding Frame_Detections, draw the bounding boxes and confidence scores on the frame.
+    """Given a frame and its corresponding FrameDetections, draw the bounding boxes and confidence scores on the frame.
     Parameters:
         - frame: BGR image to annotate (not modified in place)
-        - frame_detections: Frame_Detections containing detections to draw
+        - frame_detections: FrameDetections containing detections to draw
         - draw_conf: whether to overlay confidence scores
     Returns:
         Annotated copy of the input frame.
@@ -93,26 +93,27 @@ def draw_detections(
 
 def draw_tracked_detections(
     frame: cv2.Mat,
-    frame_detections: Frame_Detections,
+    frame_detections: FrameDetections | FrameTrackedDetections,
 ) -> cv2.Mat:
     """Draw team-colored bounding boxes with a '{number} #{track_id} {conf}'
     caption rendered just above each box.
 
     Color groups: Ball=yellow, Red team=red, White team=white, Referee=orange.
     The number is parsed from the class label ('Red_11' -> '11'); Ball has no
-    number, so its caption falls back to 'Ball'. Detections without a track_id
-    omit the '#id' segment.
+    number, so its caption falls back to 'Ball'. When the input is a plain
+    FrameDetections (no track ids on the detections) the '#id' segment is omitted.
     """
     annotated = frame.copy()
     for detection in frame_detections.detections:
         x1, y1, x2, y2 = detection.get_int_bbox_tuple()
         bbox_color, number = _get_team_color_and_number(detection.class_name)
-        
+
         # Draw the bounding box in the team color
         cv2.rectangle(annotated, (x1, y1), (x2, y2), bbox_color, 2)
 
         primary = number if number else detection.class_name
-        track_part = f" #{detection.track_id}" if detection.track_id is not None else ""
+        track_id = getattr(detection, "track_id", None)
+        track_part = f" #{track_id}" if track_id is not None else ""
         caption = f"{primary}{track_part} {detection.confidence:.2f}"
 
         _draw_caption(annotated, x1, y1, caption, bbox_color)

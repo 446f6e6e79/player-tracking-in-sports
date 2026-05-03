@@ -5,7 +5,7 @@ from src.tracking.sort_components import (
     xyxy_to_xyah,
 )
 
-from src.types.tracking import Detection
+from src.types.tracking import Detection, TrackedDetection
 
 class SortTracker:
     """Simple Online and Realtime Tracking (SORT) implementation."""
@@ -18,12 +18,12 @@ class SortTracker:
         self.max_iou_distance = max_iou_distance
         self.max_age = max_age
         self.n_init = n_init
-        
+
         self.kf = KalmanFilter()
         self.tracks: list[Track] = []
         self._next_id = 1
 
-    def update(self, detections: list[Detection]) -> list[Detection]:
+    def update(self, detections: list[Detection]) -> list[TrackedDetection]:
         """
             Run one frame of SORT. Returns matched detections with `track_id`
             populated; unmatched detections are dropped (either freshly created
@@ -70,10 +70,10 @@ class SortTracker:
         # 6. Drop deleted tracks.
         self.tracks = [t for t in self.tracks if not t.is_deleted()]
 
-        out: list[Detection] = []
+        out: list[TrackedDetection] = []
         for ti, di in matches:
             d = detections[di]
-            out.append(Detection(
+            out.append(TrackedDetection(
                 bbox=d.bbox,
                 confidence=d.confidence,
                 class_id=d.class_id,

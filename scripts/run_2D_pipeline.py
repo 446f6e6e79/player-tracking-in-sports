@@ -5,7 +5,7 @@ The Pipeline steps are:
     2. Two-pass YOLO with the fine-tuned model:
        - player pass at default resolution (imgsz=640) (class_ids = every non-ball class)
        - ball pass at imgsz=1280 with conf_threshold=0.1 (class_ids=[0])
-    3. Merge the two passes into one TrackingOutput.
+    3. Merge the two passes into one DetectionOutput.
     4. Class-independent NMS (iou=0.5) to collapse duplicate identity-coded boxes.
     5. DeepSORT (max_iou_distance=0.8, max_age=60, n_init=2).
     6. Resolve per-track labels (cumulative-confidence vote).
@@ -26,7 +26,7 @@ from src.detection.nms import class_independent_nms
 from src.detection.yolo_detection import run_yolo_detection, yolo_to_detection_output
 from src.tracking.deep_sort import apply_deep_sort
 from src.tracking.label_resolution import resolve_track_labels
-from src.types.tracking import merge_trackings
+from src.types.tracking import merge_detections
 from src.utils.video import get_frames, open_video, produce_tracking_output_video
 
 
@@ -99,7 +99,7 @@ def main() -> None:
         raw_ball_results, model,
         camera_id=args.camera, fps=fps, source="yolo_v11m_pt",
     )
-    detection_output = merge_trackings(player_out, ball_out)
+    detection_output = merge_detections(player_out, ball_out)
 
     # 4. Class-independent NMS.
     detection_output = class_independent_nms(detection_output, iou_threshold=0.5)

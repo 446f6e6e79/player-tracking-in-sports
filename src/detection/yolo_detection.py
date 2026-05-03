@@ -1,7 +1,7 @@
 from ultralytics import YOLO
 import time
 
-from src.types.tracking import BoundingBox, Detection, Frame_Detections, TrackingOutput
+from src.types.tracking import BoundingBox, Detection, DetectionOutput, FrameDetections
 
 
 def run_yolo_detection(
@@ -49,8 +49,8 @@ def yolo_to_detection_output(
     camera_id: str,
     fps: float,
     source: str = "yolo",
-) -> TrackingOutput:
-    """Convert raw YOLO detection results into a TrackingOutput (no track_ids).
+) -> DetectionOutput:
+    """Convert raw YOLO detection results into a DetectionOutput (pre-tracking).
     Parameters:
         raw_results: list returned by run_yolo_detection()
         model: the YOLO model (used for class name lookup)
@@ -58,9 +58,8 @@ def yolo_to_detection_output(
         fps: video frame rate
         source: label for the detector (e.g. "yolo_v11m_pt")
     Returns:
-        TrackingOutput with one Frame_Detections per input frame.
+        DetectionOutput with one FrameDetections per input frame.
     """
-    # Build the list of Frame_Detections for each frame
     frames = []
     for frame_index, raw_frame_data in enumerate(raw_results):
 
@@ -78,10 +77,9 @@ def yolo_to_detection_output(
                 class_id=class_id,
                 class_name=model.names[class_id],
             ))
-        # Append the Frame_Detections for this frame to the list of frames in the output
-        frames.append(Frame_Detections(frame_index=frame_index, detections=detections))
+        frames.append(FrameDetections(frame_index=frame_index, detections=detections))
 
-    return TrackingOutput(
+    return DetectionOutput(
         source=source,
         camera_id=camera_id,
         fps=fps,

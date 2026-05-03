@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from src.utils.drawing import draw_tracked_detections
-from src.types.tracking import Frame_Detections
+from src.types.tracking import FrameDetections, FrameTrackedDetections
 
 def show_image(
     frame: cv2.Mat,
@@ -24,7 +24,7 @@ def show_image(
 
 def show_images(
     frames: list[cv2.Mat],
-    frames_detections: list[Frame_Detections] | None = None,
+    frames_detections: list[FrameDetections] | list[FrameTrackedDetections] | None = None,
     *,
     titles: list[str] | None = None,
     n: int | None = None,

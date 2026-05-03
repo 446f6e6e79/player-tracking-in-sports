@@ -51,8 +51,8 @@ def compute_detection_metrics(acc: mm.MOTAccumulator) -> DetectionMetrics:
 def compute_identity_metrics(acc: mm.MOTAccumulator) -> IdentityMetrics:
     """Derive IDF1 family metrics from a populated MOTAccumulator.
     - True positives (tp): number of GT detections correctly identified (IoU > threshold with a prediction of the same identity).
-    - False positives (fp): number of predicted detections that are IoU > threshold with a GT detection of a different identity, or with no GT match (including track_id=None detections).
-    - False negatives (fn): number of GT detections that are IoU > threshold with a predicted detection of a different identity, or with no prediction match (including track_id=None detections).
+    - False positives (fp): number of predicted detections that are IoU > threshold with a GT detection of a different identity, or with no GT match.
+    - False negatives (fn): number of GT detections that are IoU > threshold with a predicted detection of a different identity, or with no prediction match.
     Parameters:
         - acc: accumulator built by build_accumulator().
     Returns:
@@ -83,7 +83,7 @@ def compute_hota(
     """Compute HOTA metrics between ground-truth annotations and tracker output using trackeval.
     Parameters:
         - ground_truth: TrackingOutput from annotation files (source="ground_truth").
-        - predictions: TrackingOutput from a tracker with track_id populated.
+        - predictions: TrackingOutput from a tracker.
     Returns:
         HOTAMetrics with scalar averages and per-alpha breakdowns.
             - hota: representing the overall HOTA score (aggregate geometric mean of DetA and AssA averaged over alpha thresholds)
@@ -116,7 +116,7 @@ def evaluate_tracking(
     """Evaluate predicted tracking output against ground-truth annotations.
     Parameters:
         - ground_truth: TrackingOutput from annotation files (source="ground_truth").
-        - predictions: TrackingOutput from a tracker with track_id populated.
+        - predictions: TrackingOutput from a tracker.
         - iou_threshold: minimum IoU for a prediction to count as a true positive (default 0.5).
     Returns:
         EvaluationTrackingResult composed of DetectionMetrics, IdentityMetrics, HOTAMetrics.

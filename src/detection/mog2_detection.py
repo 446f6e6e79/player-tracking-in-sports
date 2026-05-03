@@ -1,7 +1,7 @@
 import cv2
 import time
 
-from src.types.tracking import BoundingBox, Detection, Frame_Detections, TrackingOutput
+from src.types.tracking import BoundingBox, Detection, DetectionOutput, FrameDetections
 from src.detection.image_processing import (
     normalize_illumination,
     opening_closing,
@@ -78,13 +78,13 @@ def run_mog2_detection(
 
     return masks
 
-def mog2_to_tracking_output(
+def mog2_to_detection_output(
     raw_masks: list[cv2.Mat],
     camera_id: str,
     fps: float,
     source: str = "mog2",
-) -> TrackingOutput:
-    """Convert raw MOG2 binary masks into a TrackingOutput.
+) -> DetectionOutput:
+    """Convert raw MOG2 binary masks into a DetectionOutput.
     One Detection is emitted per connected component (blob); confidence is a constant 1.0
     because MOG2 is a hard binary classifier with no probabilistic score.
     Parameters:
@@ -93,9 +93,8 @@ def mog2_to_tracking_output(
         fps: video frame rate
         source: label for the detector (e.g. "mog2")
     Returns:
-        TrackingOutput with one Frame_Detections per input mask.
+        DetectionOutput with one FrameDetections per input mask.
     """
-    # Build the list of FrameDetections for each frame
     frames = []
     for frame_index, mask in enumerate(raw_masks):
 
@@ -110,18 +109,15 @@ def mog2_to_tracking_output(
             w = int(stats[label, cv2.CC_STAT_WIDTH])
             h = int(stats[label, cv2.CC_STAT_HEIGHT])
 
-            # Build a Detection object and add it to the list for this frame
             detections.append(Detection(
                 bbox=BoundingBox(float(x), float(y), float(x + w), float(y + h)),
                 confidence=1.0,
                 class_id=None,      # MOG2 does not provide class information
                 class_name=None,    # MOG2 does not provide class information
-                track_id=None,      # No tracking in this stage, so track_id is None
             ))
-        # Append the FrameDetections for this frame to the list of frames in the output
-        frames.append(Frame_Detections(frame_index=frame_index, detections=detections))
+        frames.append(FrameDetections(frame_index=frame_index, detections=detections))
 
-    return TrackingOutput(
+    return DetectionOutput(
         source=source,
         camera_id=camera_id,
         fps=fps,

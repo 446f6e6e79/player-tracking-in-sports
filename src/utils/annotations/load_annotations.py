@@ -1,42 +1,56 @@
 import json
 from pathlib import Path
 
-from src.types.tracking import BoundingBox, Detection, Frame_Detections, TrackingOutput
+from src.types.tracking import (
+    BoundingBox,
+    FrameTrackedDetections,
+    TrackedDetection,
+    TrackingOutput,
+)
 
 
 def load_annotations(camera_id: str) -> TrackingOutput:
     """Load ground-truth processed annotations for a single camera from disk.
-    Annotations are stored as JSON files that already match the TrackingOutput schema,
-    so this function is a straightforward deserialisation from dict to dataclasses.
+    Annotations are stored as JSON files matching the post-tracking schema; the
+    on-disk file may not include `track_id`, so we synthesize a stable id per
+    `class_name` (the canonical identity in our annotations — e.g. "White_14",
+    "Red_7"). Eval continues to use class_name for GT identity; the synthetic
+    id only exists to satisfy the TrackedDetection contract.
     Parameters:
         - camera_id: camera identifier used to resolve the file name (e.g. "cam_2").
     Returns:
         TrackingOutput populated with ground-truth detections.
-        Note: track_id is always None in ground-truth files; player identity is
-        encoded in class_name (e.g. "White_14", "Red_7").
     """
-    # Construct the file path for the specified camera's annotation JSON
     project_root = Path(__file__).parent.parent.parent.parent
     path = project_root / "data" / "annotations" / f"{camera_id}.json"
     with open(path) as f:
         data = json.load(f)
 
-    # Convert the loaded JSON data into TrackingOutput dataclasses
+    class_name_to_id: dict[str, int] = {}
+    next_id = 1
+
     frames = []
     for frame in data["frames"]:
         detections = []
         for det in frame["detections"]:
-            detections.append(Detection(
-                bbox=BoundingBox(**det["bbox"]),            # keys x1/y1/x2/y2 match dataclass fields exactly
-                confidence=det["confidence"],               # confidence is a float in the JSON, matches dataclass field
-                class_id=det["class_id"],                   # class_id is an int in the JSON, matches dataclass field
-                class_name=det["class_name"],               # class_name is a string in the JSON, matches dataclass field
-                track_id=det.get("track_id"),               # track_id may be missing (null in JSON), so use .get() to default to None
-            ))
-        # Append the Frame_Detections for this frame to the list of frames in the output
-        frames.append(Frame_Detections(frame_index=frame["frame_index"], detections=detections))
+            class_name = det["class_name"]
+            # Stable per-identity track_id derived from class_name on first sight.
+            if class_name not in class_name_to_id:
+                class_name_to_id[class_name] = next_id
+                next_id += 1
+            track_id = det.get("track_id")
+            if track_id is None:
+                track_id = class_name_to_id[class_name]
 
-    # Return the complete TrackingOutput with metadata and the list of Frame_Detections
+            detections.append(TrackedDetection(
+                bbox=BoundingBox(**det["bbox"]),
+                confidence=det["confidence"],
+                class_id=det["class_id"],
+                class_name=class_name,
+                track_id=track_id,
+            ))
+        frames.append(FrameTrackedDetections(frame_index=frame["frame_index"], detections=detections))
+
     return TrackingOutput(
         source=data["source"],
         camera_id=data["camera_id"],

@@ -15,7 +15,7 @@ Algorithm (one call to `update(detections, frame)` per video frame):
 """
 import numpy as np
 
-from src.types.tracking import Detection
+from src.types.tracking import Detection, TrackedDetection
 from src.tracking.sort_components.appearance import AppearanceEncoder
 from src.tracking.sort_components.kalman_filter import KalmanFilter
 from src.tracking.sort_components.matching import matching_cascade, min_cost_matching
@@ -48,7 +48,7 @@ class DeepSortTracker:
         self,
         detections: list[Detection],
         frame: np.ndarray,
-    ) -> list[Detection]:
+    ) -> list[TrackedDetection]:
         """Run one step of the tracker. Returns this frame's matched
         detections with `track_id` populated. Unmatched detections are
         dropped — they're either freshly born tentative tracks (still on
@@ -106,10 +106,10 @@ class DeepSortTracker:
 
         # Build the per-frame output: matched detections re-issued with
         # their stable track_id. Order mirrors the matching order.
-        out: list[Detection] = []
+        out: list[TrackedDetection] = []
         for ti, di in matches:
             d = detections[di]
-            out.append(Detection(
+            out.append(TrackedDetection(
                 bbox=d.bbox,
                 confidence=d.confidence,
                 class_id=d.class_id,
