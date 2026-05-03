@@ -22,9 +22,12 @@ def apply_sort(
         n_init=n_init,
     )
     new_frames: list[FrameTrackedDetections] = []
-    for fd in sorted(detection_output.frames, key=lambda f: f.frame_index):
-        tracked = tracker.update(list(fd.detections))
-        new_frames.append(FrameTrackedDetections(frame_index=fd.frame_index, detections=tracked))
+
+    # Enforce SORTED processing by frame_index, as SORT relies on temporal consistency
+    for frame_detections in sorted(detection_output.frames, key=lambda f: f.frame_index):
+        # Generate tracked detections for this frame
+        tracked = tracker.update(list(frame_detections.detections))
+        new_frames.append(FrameTrackedDetections(frame_index=frame_detections.frame_index, detections=tracked))
 
     return TrackingOutput(
         source=detection_output.source,

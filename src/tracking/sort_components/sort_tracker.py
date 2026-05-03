@@ -8,7 +8,16 @@ from src.tracking.sort_components import (
 from src.types.tracking import Detection, TrackedDetection
 
 class SortTracker:
-    """Simple Online and Realtime Tracking (SORT) implementation."""
+    """
+    Simple Online and Realtime Tracking (SORT) implementation.
+    SORT is a lightweight tracking algorithm that uses a Kalman Filter for motion prediction and the 
+    Hungarian algorithm for data association based on IoU.
+    SORT does not use appearance features and relies solely on spatial information, making it fast but less robust to occlusions.
+    Parameters:
+        - max_iou_distance: Maximum IOU distance for matching.
+        - max_age: Maximum number of frames to keep "alive" without matches.
+        - n_init: Number of consecutive matches needed to confirm a track.
+    """
     def __init__(
         self,
         max_iou_distance: float,
@@ -20,14 +29,21 @@ class SortTracker:
         self.n_init = n_init
 
         self.kf = KalmanFilter()
+        # List of active tracks. Each track has its own state and lifecycle.
         self.tracks: list[Track] = []
         self._next_id = 1
 
     def update(self, detections: list[Detection]) -> list[TrackedDetection]:
         """
-            Run one frame of SORT. Returns matched detections with `track_id`
-            populated; unmatched detections are dropped (either freshly created
-            tentative tracks or noise).
+        Run the SORT update cycle for the current frame's detections.
+        Steps:
+            1. Predict every existing track one frame forward (Kalman Filter)
+            2. Match confirmed tracks against all detections by IoU.
+            3. Match tentative tracks against the residual.
+            4. Apply matched updates and mark misses.
+            5. Initiate new tentative tracks for unmatched detections.
+            6. Drop deleted tracks.
+        Returns a list of TrackedDetections for the current frame, with assigned track IDs.
         """
 
         # 1. Predict every existing track one frame forward.
@@ -44,6 +60,7 @@ class SortTracker:
             confirmed_indices, all_det_indices,
             self.max_iou_distance,
         )
+        
         # 3. Match tentative tracks against the residual.
         matches_b, um_tracks_b, um_dets = min_cost_matching(
             self.tracks, detections,

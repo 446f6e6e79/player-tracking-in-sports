@@ -1,31 +1,3 @@
-"""Appearance feature extractor for DeepSORT re-identification.
-
-Uses OSNet (Zhou et al., ICCV 2019) — a CNN architecture purpose-built for
-person re-identification, trained on MSMT17. OSNet's omni-scale feature
-learning is far more discriminative for cross-occlusion ReID than an
-ImageNet-pretrained backbone, because it was trained directly on the task of
-matching the same person across cameras and viewpoints.
-
-Setup (one time):
-
-  1. Install torchreid. The PyPI package is stale; install from source:
-
-         pip install git+https://github.com/KaiyangZhou/deep-person-reid.git
-
-  2. Download OSNet x1.0 weights trained on MSMT17 from the model zoo:
-
-         https://kaiyangzhou.github.io/deep-person-reid/MODEL_ZOO
-
-     Pick the file named:
-         osnet_x1_0_msmt17_combineall_256x128_amsgrad_ep150_stp60_lr0.0015_b64_fb10_softmax_labelsmooth_flip.pth
-
-     and save it to `models/osnet_x1_0_msmt17.pt` in the repo root.
-
-If you'd rather use a smaller / faster variant, point `weights_path` and
-`model_name` at e.g. `osnet_x0_25` — same `EMBED_DIM = 512`.
-"""
-from __future__ import annotations
-
 import os
 from pathlib import Path
 

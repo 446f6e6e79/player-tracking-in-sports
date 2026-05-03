@@ -1,13 +1,3 @@
-"""A single tracked object: Kalman state + lifecycle counters.
-
-Lifecycle:
-    TENTATIVE  : freshly created, not yet trusted (might be a false positive)
-                 -> CONFIRMED after `n_init` consecutive matched frames
-                 -> DELETED on the very first miss
-    CONFIRMED  : trusted track. Coasts (Kalman-predicted only) when not matched.
-                 -> DELETED once `time_since_update` exceeds `max_age`
-    DELETED    : removed from the tracker at the end of the step.
-"""
 from collections import deque
 from enum import Enum
 
@@ -18,6 +8,15 @@ from src.tracking.sort_components.kalman_filter import KalmanFilter
 
 
 class TrackState(Enum):
+    """
+    Enumeration type for the single object track state.
+    Each track can be in one of three states:
+    - Tentative: The track is newly created and not confirmed until it has enough hits.
+    - Confirmed: The track has been matched with detections for at least `n_init` 
+      consecutive frames and is considered a valid track.
+    - Deleted: The track has been marked for deletion due to too 
+      many missed matches or being a false positive (if it was never confirmed).
+    """
     TENTATIVE = 1
     CONFIRMED = 2
     DELETED = 3
@@ -26,8 +25,11 @@ class TrackState(Enum):
 def xyxy_to_xyah(bbox) -> np.ndarray:
     """Convert (x1, y1, x2, y2) -> (cx, cy, a, h) measurement vector."""
     x1, y1, x2, y2 = bbox
+    # Get height and width of the bounding box
     w = x2 - x1
     h = y2 - y1
+    
+    # Compute centers and aspect ratio
     cx = x1 + w / 2.0
     cy = y1 + h / 2.0
     a = w / max(h, 1e-6)
@@ -36,7 +38,9 @@ def xyxy_to_xyah(bbox) -> np.ndarray:
 
 def xyah_to_xyxy(state: np.ndarray) -> tuple[float, float, float, float]:
     """Convert state[:4] = (cx, cy, a, h) -> (x1, y1, x2, y2)."""
+    # Extract center, aspect ratio, and height from the state vector
     cx, cy, a, h = state[:4]
+    # Reverse the aspect ratio to get width, then compute corners
     w = a * h
     return (cx - w / 2.0, cy - h / 2.0, cx + w / 2.0, cy + h / 2.0)
 
@@ -53,6 +57,18 @@ class Track:
         feature: np.ndarray | None = None,
         feature_budget: int = 100,
     ) -> None:
+        """
+        Represents a single object track with its state and lifecycle.
+        Parameters:
+        - mean: Kalman filter mean state vector (8D: [cx, cy, a, h, vx, vy, va, vh]).
+        - covariance: Kalman filter covariance matrix (8x8).
+        - track_id: Unique integer ID for this track.
+        - n_init: Number of consecutive matches needed to confirm a track.
+        - max_age: Maximum number of frames to keep "alive" without matches.
+        - detection: The initial Detection that created this track (carries class_id / class_name).
+        - feature: Optional initial appearance feature vector (L2-normalized).
+        - feature_budget: Maximum number of recent features to store for this track.
+        """
         self.mean = mean
         self.covariance = covariance
         self.track_id = track_id
