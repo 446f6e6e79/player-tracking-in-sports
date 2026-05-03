@@ -1,6 +1,9 @@
 import cv2
 import matplotlib.pyplot as plt
+import numpy as np
 
+from src.utils.drawing import draw_tracked_detections
+from src.types.tracking import Frame_Detections
 
 def show_image(
     frame: cv2.Mat,
@@ -21,33 +24,57 @@ def show_image(
 
 def show_images(
     frames: list[cv2.Mat],
+    frames_detections: list[Frame_Detections] | None = None,
+    *,
     titles: list[str] | None = None,
-    is_yolo: bool = False
+    n: int | None = None,
+    indexes: list[int] | None = None,
 ) -> None:
-    """
-    Displays first, middle, and last images from a list of frames using matplotlib.
-    The images are expected to be in BGR format.
+    """Display a selection of images from a list of frames using matplotlib.
+
+    Frames are expected in BGR format.
+
+    Selection precedence:
+        1. `indexes` — explicit list of frame indexes (used verbatim).
+        2. `n`       — that many evenly-spaced frames (n=2 → first+last,
+                       n=3 → first/middle/last, etc.).
+        3. default   — first, middle, last (today's behavior).
+
+    If `frames_detections` is provided, each selected frame is annotated via
+    `draw_tracked_detections` before being shown — this replaces the old
+    `show_annotated_images` helper.
+
     Parameters:
-        - frames: A list of images to display (in BGR format)
-        - titles: An optional list of titles for each image (default is None, which means no titles)
-        - is_yolo: A boolean indicating whether the images are YOLO annotated frames (default is False)
+        - frames: list of BGR images.
+        - frames_detections: optional per-frame detections to overlay.
+        - titles: optional list of titles, one per *selected* frame.
+        - n: number of evenly-spaced frames to show.
+        - indexes: explicit list of frame indexes to show.
     """
-    selected_frames_idxs = [0, len(frames)//2, len(frames)-1]
-    _, axes = plt.subplots(1, 3, figsize=(20, 5))
+    if indexes is not None:
+        selected = list(indexes)
+    elif n is not None:
+        selected = np.linspace(0, len(frames) - 1, n, dtype=int).tolist()
+    else:
+        selected = [0, len(frames) // 2, len(frames) - 1]
 
-    for i, frame_idx in enumerate(selected_frames_idxs):
+    fig, axes = plt.subplots(1, len(selected), figsize=(min(25, 5 * len(selected)), 5))
+    # plt.subplots returns a bare Axes when squeezing 1×1; normalize to a list.
+    if len(selected) == 1:
+        axes = [axes]
+
+    annotated = frames_detections is not None
+    for i, frame_idx in enumerate(selected):
         frame = frames[frame_idx]
-
-        if is_yolo:
-            # If the frame is a YOLO annotated frame, we need to call the plot() method to get the visualized image
-            frame = frame.plot()
-        # Convert the image from BGR to RGB format for displaying with matplotlib
+        if annotated:
+            frame = draw_tracked_detections(frame, frames_detections[frame_idx])
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
         axes[i].imshow(rgb_frame)
         if titles is not None:
             axes[i].set_title(titles[i])
-        # Set default title to indicate frame index if titles are not provided
+        elif annotated:
+            axes[i].set_title(f"Frame {frame_idx} with Detections")
         else:
             axes[i].set_title(f"Frame {frame_idx}")
         axes[i].axis("off")

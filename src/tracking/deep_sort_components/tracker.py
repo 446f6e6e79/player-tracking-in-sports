@@ -3,17 +3,15 @@
 Algorithm (one call to `update(detections, frame)` per video frame):
 
     1. Predict every existing track one step forward with the Kalman filter.
-    2. If an appearance encoder is configured, embed every detection crop.
-    3. Match CONFIRMED tracks via the appearance cascade (or fall back to IoU
-       when no encoder is set).
-    4. Match TENTATIVE tracks against leftover detections by IoU.
+    2. Embed every detection crop with the appearance encoder.
+    3. Match CONFIRMED tracks via the appearance cascade
+       (cosine cost, gated by IoU and appearance distance).
+    4. Match TENTATIVE tracks against leftover detections by IoU
+       (their galleries are too thin to trust appearance yet — this is the
+       canonical DeepSORT step, not a fallback).
     5. Apply matched updates; mark unmatched tracks as missed.
     6. Initiate fresh TENTATIVE tracks for still-unmatched detections.
     7. Drop tracks that ended up in the DELETED state.
-
-Without an encoder this is equivalent to SORT (Kalman + IoU + Hungarian).
-With an encoder it adds the per-track appearance gallery and time-since-update
-cascade described in the original DeepSORT paper.
 """
 import numpy as np
 
@@ -27,7 +25,7 @@ from src.tracking.deep_sort_components.track import Track, xyxy_to_xyah
 class DeepSortTracker:
     def __init__(
         self,
-        encoder: AppearanceEncoder | None = None,
+        encoder: AppearanceEncoder,
         max_iou_distance: float = 0.7,
         max_appearance_distance: float = 0.2,
         max_age: int = 30,
@@ -48,7 +46,7 @@ class DeepSortTracker:
     def update(
         self,
         detections: list[Detection],
-        frame: np.ndarray | None = None,
+        frame: np.ndarray,
     ) -> list[Detection]:
         """Run one step of the tracker. Returns this frame's matched
         detections with `track_id` populated. Unmatched detections are
@@ -59,33 +57,27 @@ class DeepSortTracker:
         for track in self.tracks:
             track.predict(self.kf)
 
-        # 2. Embed detection crops if we have both an encoder and a frame.
-        features: np.ndarray | None = None
-        if self.encoder is not None and frame is not None and detections:
+        # 2. Embed detection crops.
+        if detections:
             boxes = np.asarray([d.get_bbox_tuple() for d in detections], dtype=float)
             features = self.encoder(frame, boxes)
+        else:
+            features = np.empty((0, self.encoder.EMBED_DIM), dtype=np.float32)
 
         confirmed_indices = [i for i, t in enumerate(self.tracks) if t.is_confirmed()]
         tentative_indices = [i for i, t in enumerate(self.tracks) if t.is_tentative()]
         all_det_indices = list(range(len(detections)))
 
-        # 3. Confirmed tracks: appearance cascade if we have features, else IoU.
-        if features is not None:
-            matches_a, um_tracks_a, um_dets = matching_cascade(
-                self.tracks, detections, features,
-                confirmed_indices, all_det_indices,
-                self.max_iou_distance, self.max_appearance_distance,
-                self.max_age,
-            )
-        else:
-            matches_a, um_tracks_a, um_dets = min_cost_matching(
-                self.tracks, detections,
-                confirmed_indices, all_det_indices,
-                self.max_iou_distance,
-            )
+        # 3. Confirmed tracks: appearance cascade.
+        matches_a, um_tracks_a, um_dets = matching_cascade(
+            self.tracks, detections, features,
+            confirmed_indices, all_det_indices,
+            self.max_iou_distance, self.max_appearance_distance,
+            self.max_age,
+        )
 
-        # 4. Tentative tracks always go through IoU — galleries are too thin
-        # to trust appearance for newborn tracks.
+        # 4. Tentative tracks: IoU on the residual detections (canonical
+        # DeepSORT step — newborn tracks have one-sample galleries).
         matches_b, um_tracks_b, um_dets = min_cost_matching(
             self.tracks, detections,
             tentative_indices, um_dets,
@@ -96,8 +88,7 @@ class DeepSortTracker:
 
         # 5. Apply matched updates and mark misses.
         for ti, di in matches:
-            feat = features[di] if features is not None else None
-            self.tracks[ti].update(self.kf, detections[di], feature=feat)
+            self.tracks[ti].update(self.kf, detections[di], feature=features[di])
         for ti in unmatched_tracks:
             self.tracks[ti].mark_missed()
 
@@ -107,8 +98,7 @@ class DeepSortTracker:
 
         # 6. Initiate new tentative tracks for unmatched detections.
         for di in um_dets:
-            feat = features[di] if features is not None else None
-            self._initiate_track(detections[di], feature=feat)
+            self._initiate_track(detections[di], feature=features[di])
 
         # 7. Drop deleted tracks.
         self.tracks = [t for t in self.tracks if not t.is_deleted()]
@@ -127,11 +117,7 @@ class DeepSortTracker:
             ))
         return out
 
-    def _initiate_track(
-        self,
-        detection: Detection,
-        feature: np.ndarray | None = None,
-    ) -> None:
+    def _initiate_track(self, detection: Detection, feature: np.ndarray) -> None:
         mean, covariance = self.kf.initiate(xyxy_to_xyah(detection.get_bbox_tuple()))
         self.tracks.append(Track(
             mean=mean,

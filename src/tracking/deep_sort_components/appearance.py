@@ -1,22 +1,48 @@
 """Appearance feature extractor for DeepSORT re-identification.
 
-Wraps a torchvision ResNet18 (ImageNet-pretrained) with the classifier head
-replaced by global avg pool + L2 normalize. Given a frame and a set of
-detection boxes, returns one 512-D embedding per box.
+Uses OSNet (Zhou et al., ICCV 2019) — a CNN architecture purpose-built for
+person re-identification, trained on MSMT17. OSNet's omni-scale feature
+learning is far more discriminative for cross-occlusion ReID than an
+ImageNet-pretrained backbone, because it was trained directly on the task of
+matching the same person across cameras and viewpoints.
 
-This is a deliberate baseline: ImageNet features are not as discriminative as
-a real ReID network trained on person crops (e.g. OSNet, FastReID), but they
-are good enough to break IoU-only ID-swap ties during occlusions and they
-require no extra weight files to ship.
+Setup (one time):
+
+  1. Install torchreid. The PyPI package is stale; install from source:
+
+         pip install git+https://github.com/KaiyangZhou/deep-person-reid.git
+
+  2. Download OSNet x1.0 weights trained on MSMT17 from the model zoo:
+
+         https://kaiyangzhou.github.io/deep-person-reid/MODEL_ZOO
+
+     Pick the file named:
+         osnet_x1_0_msmt17_combineall_256x128_amsgrad_ep150_stp60_lr0.0015_b64_fb10_softmax_labelsmooth_flip.pth
+
+     and save it to `models/osnet_x1_0_msmt17.pt` in the repo root.
+
+If you'd rather use a smaller / faster variant, point `weights_path` and
+`model_name` at e.g. `osnet_x0_25` — same `EMBED_DIM = 512`.
 """
 from __future__ import annotations
+
+import os
+from pathlib import Path
+
+# Point urllib at certifi's CA bundle. Without this, the macOS Python.app
+# distribution falls back to a trust store that fails CDN cert validation.
+import certifi
+os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
 
 import cv2
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.models import resnet18, ResNet18_Weights
+
+
+DEFAULT_WEIGHTS_PATH = Path("models/osnet_x1_0_msmt17.pt")
+DEFAULT_MODEL_NAME = "osnet_x1_0"
 
 
 def _pick_device() -> torch.device:
@@ -28,25 +54,43 @@ def _pick_device() -> torch.device:
 
 
 class AppearanceEncoder:
-    """ResNet18-backed embedding extractor returning L2-normalized 512-D vectors."""
+    """OSNet-backed embedding extractor returning L2-normalized 512-D vectors."""
 
-    EMBED_DIM = 512
+    EMBED_DIM = 512  # OSNet x1.0 final feature dimension
 
     def __init__(
         self,
+        weights_path: str | Path = DEFAULT_WEIGHTS_PATH,
+        model_name: str = DEFAULT_MODEL_NAME,
         device: str | torch.device | None = None,
-        input_size: tuple[int, int] = (128, 64),  # (H, W) — ReID convention
+        input_size: tuple[int, int] = (256, 128),  # OSNet's training resolution (H, W)
     ) -> None:
+        try:
+            from torchreid.utils import FeatureExtractor
+        except ImportError as e:
+            raise ImportError(
+                "AppearanceEncoder requires `torchreid`. Install with:\n"
+                "  pip install git+https://github.com/KaiyangZhou/deep-person-reid.git"
+            ) from e
+
+        weights_path = Path(weights_path)
+        if not weights_path.exists():
+            raise FileNotFoundError(
+                f"OSNet weights not found at {weights_path.resolve()}.\n"
+                "Download from https://kaiyangzhou.github.io/deep-person-reid/MODEL_ZOO "
+                f"(file: {model_name}_msmt17_*.pth) and save it as "
+                f"{weights_path}."
+            )
+
         self.device = torch.device(device) if device is not None else _pick_device()
         self.input_size = input_size
 
-        backbone = resnet18(weights=ResNet18_Weights.DEFAULT)
-        # Drop the original avg pool + fc head; keep conv stages only.
-        self.feature_extractor = (
-            nn.Sequential(*list(backbone.children())[:-2]).to(self.device).eval()
+        self._extractor = FeatureExtractor(
+            model_name=model_name,
+            model_path=str(weights_path),
+            image_size=list(input_size),  # FeatureExtractor takes [H, W]
+            device=str(self.device),
         )
-        self._mean = torch.tensor([0.485, 0.456, 0.406], device=self.device).view(1, 3, 1, 1)
-        self._std = torch.tensor([0.229, 0.224, 0.225], device=self.device).view(1, 3, 1, 1)
 
     def __call__(self, frame: np.ndarray, boxes: np.ndarray) -> np.ndarray:
         """frame: BGR HxWx3; boxes: (N, 4) xyxy. Returns (N, 512) float32."""
@@ -54,7 +98,6 @@ class AppearanceEncoder:
             return np.empty((0, self.EMBED_DIM), dtype=np.float32)
 
         h_img, w_img = frame.shape[:2]
-        target_h, target_w = self.input_size
 
         crops: list[np.ndarray] = []
         keep: list[int] = []
@@ -65,32 +108,20 @@ class AppearanceEncoder:
             y2c = int(max(0, min(h_img,     np.ceil(y2))))
             if x2c <= x1c or y2c <= y1c:
                 continue
-            crops.append(frame[y1c:y2c, x1c:x2c])
+            # FeatureExtractor builds a PIL Image from each numpy array, so it
+            # expects RGB ordering.
+            crops.append(cv2.cvtColor(frame[y1c:y2c, x1c:x2c], cv2.COLOR_BGR2RGB))
             keep.append(i)
 
         out = np.zeros((len(boxes), self.EMBED_DIM), dtype=np.float32)
         if not crops:
             return out
 
-        resized = np.stack(
-            [
-                cv2.resize(
-                    cv2.cvtColor(c, cv2.COLOR_BGR2RGB), (target_w, target_h)
-                ).astype(np.float32)
-                / 255.0
-                for c in crops
-            ],
-            axis=0,
-        )  # (N, H, W, 3)
-        batch = torch.from_numpy(resized).permute(0, 3, 1, 2).contiguous().to(self.device)
-        batch = (batch - self._mean) / self._std
-
         with torch.inference_mode():
-            feats = self.feature_extractor(batch)               # (N, 512, h', w')
-            feats = F.adaptive_avg_pool2d(feats, 1).flatten(1)  # (N, 512)
-            feats = F.normalize(feats, p=2, dim=1)
-
+            feats = self._extractor(crops)               # (N, 512)
+            feats = F.normalize(feats, p=2, dim=1)       # match cosine-distance assumptions
         embeds = feats.detach().cpu().numpy().astype(np.float32)
+
         for row, src in enumerate(keep):
             out[src] = embeds[row]
         return out
