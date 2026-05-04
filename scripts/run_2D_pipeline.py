@@ -18,6 +18,10 @@ Usage example:
 """
 import argparse
 from pathlib import Path
+import sys
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
 
 import cv2
 from ultralytics import YOLO
@@ -56,6 +60,8 @@ def video_path_for(camera: str, input_dir: Path) -> Path:
 
 def main() -> None:
     args = parse_args()
+    print(f"Running 2D pipeline for camera {args.camera} with model {args.model}...")
+
     input_dir = Path(args.input_dir)
     
     # Set up the output directory for this camera.
@@ -80,17 +86,23 @@ def main() -> None:
     player_classes = list(range(1, len(model.names)))  # everything except ball (class 0)
 
     # Run the player pass
+    print("Running player detection pass...")
     raw_player_results = run_yolo_detection(
         model, frames_color, 
         class_ids=player_classes
     )
+    print("Player detection pass completed.")
+    
+    print("Running ball detection pass...")
     # Run the ball pass
     raw_ball_results = run_yolo_detection(
         model, frames_color,
         conf_threshold=0.1, inference_size=1280, class_ids=[0],
     )
+    print("Ball detection pass completed.")
 
     # 3. Convert YOLO outputs to DetectionOutput and merge them
+    print("Merging player and ball detections...")
     player_out = yolo_to_detection_output(
         raw_player_results, model,
         camera_id=args.camera, fps=fps, source="yolo_v11m_pt",
@@ -102,13 +114,16 @@ def main() -> None:
     detection_output = merge_detections(player_out, ball_out)
 
     # 4. Class-independent NMS.
+    print("Applying class-independent NMS to merge duplicate boxes...")
     detection_output = class_independent_nms(detection_output, iou_threshold=0.5)
 
     # Optional: save the detection video with boxes drawn but before tracking.
     if args.save_detection_video:
+        print("Saving detection video...")
         produce_tracking_output_video(frames_color, detection_output, str(out_dir / "detection.mp4"))
 
     # 5. DeepSORT.
+    print("Applying DeepSORT...")
     tracking_output = apply_deep_sort(
         detection_output,
         frames=frames_color,
@@ -116,18 +131,20 @@ def main() -> None:
         max_age=60,
         n_init=2,
     )
+    print("DeepSORT tracking completed.")
 
     if args.save_tracking_video:
+        print("Saving tracking video before label resolution...")
         produce_tracking_output_video(frames_color, tracking_output, str(out_dir / "tracking.mp4"))
 
     # 6. Resolve labels.
+    print("Resolving track labels...")
     resolved_output = resolve_track_labels(tracking_output)
 
     # 7. Final tracking video — always.
     final_path = out_dir / "tracking_resolved.mp4"
+    print(f"Saving final tracking video with resolved labels to {final_path}...")
     produce_tracking_output_video(frames_color, resolved_output, str(final_path))
-    print(f"\nWrote final tracking video: {final_path}")
-
 
 if __name__ == "__main__":
     main()
