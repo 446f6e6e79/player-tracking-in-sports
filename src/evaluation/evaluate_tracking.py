@@ -3,14 +3,18 @@ import numpy as np
 import motmetrics as mm
 import trackeval
 
-from src.evaluation.tracking_helpers import build_accumulator, build_hota_data
+from src.evaluation.tracking_helpers import (
+    build_accumulator,
+    build_hota_data,
+    validate_evaluation_inputs,
+)
 from src.types.evaluation import (
     DetectionMetrics,
     EvaluationTrackingResult,
     HOTAMetrics,
     IdentityMetrics,
 )
-from src.types.tracking import TrackingOutput
+from src.types.tracking import DetectionOutput, TrackingOutput, dets_to_xywh
 
 # Create a metrics handler
 _MH = mm.metrics.create()
@@ -108,6 +112,44 @@ def compute_hota(
     )
 
 
+def evaluate_detection(
+    ground_truth: DetectionOutput | TrackingOutput,
+    predictions: DetectionOutput | TrackingOutput,
+    iou_threshold: float = 0.5,
+) -> DetectionMetrics:
+    """Evaluate predicted detections against ground-truth annotations.
+
+    Suitable for detection-only models (e.g. MOG2). Identity is not evaluated —
+    only bbox-level quality. Accepts DetectionOutput or TrackingOutput for both args.
+
+    Parameters:
+        - ground_truth: annotations (DetectionOutput or TrackingOutput).
+        - predictions: detector output (DetectionOutput or TrackingOutput).
+        - iou_threshold: minimum IoU for a prediction to count as a true positive (default 0.5).
+    Returns:
+        DetectionMetrics with tp, fp, fn, precision, recall, f1, mean_iou.
+    """
+    frame_stride = validate_evaluation_inputs(ground_truth, predictions, context="Detection evaluation")
+
+    pred_index = {frame.frame_index: frame.detections for frame in predictions.frames}
+    max_iou_dist = 1.0 - iou_threshold
+
+    acc = mm.MOTAccumulator(auto_id=False)
+
+    for gt_pos, frame in enumerate(ground_truth.frames):
+        gt_dets   = frame.detections
+        pred_dets = pred_index.get(gt_pos * frame_stride, [])
+
+        # Sequential ints as IDs — identity is irrelevant for detection-only evaluation
+        gt_ids   = list(range(len(gt_dets)))
+        pred_ids = list(range(len(pred_dets)))
+
+        dist = mm.distances.iou_matrix(dets_to_xywh(gt_dets), dets_to_xywh(pred_dets), max_iou=max_iou_dist)
+        acc.update(gt_ids, pred_ids, dist, frameid=frame.frame_index)
+
+    return compute_detection_metrics(acc)
+
+
 def evaluate_tracking(
     ground_truth: TrackingOutput,
     predictions: TrackingOutput,
@@ -121,6 +163,8 @@ def evaluate_tracking(
     Returns:
         EvaluationTrackingResult composed of DetectionMetrics, IdentityMetrics, HOTAMetrics.
     """
+    validate_evaluation_inputs(ground_truth, predictions, context="Tracking evaluation")
+
     # Build a shared accumulator once; all motmetrics-based compute_* functions reuse it
     acc = build_accumulator(ground_truth, predictions, iou_threshold)
 

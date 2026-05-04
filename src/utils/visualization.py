@@ -1,9 +1,12 @@
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+from IPython.display import display
 
-from src.utils.drawing import draw_tracked_detections
-from src.types.tracking import FrameDetections, FrameTrackedDetections
+from src.utils.drawing import draw_detections, draw_tracked_detections
+from src.types.tracking import DetectionOutput, FrameDetections, FrameTrackedDetections, TrackingOutput
+from src.types.evaluation import DetectionMetrics, EvaluationTrackingResult
 
 def show_image(
     frame: cv2.Mat,
@@ -24,7 +27,7 @@ def show_image(
 
 def show_images(
     frames: list[cv2.Mat],
-    frames_detections: list[FrameDetections] | list[FrameTrackedDetections] | None = None,
+    frames_detections: DetectionOutput | TrackingOutput | list[FrameDetections] | list[FrameTrackedDetections] | None = None,
     *,
     titles: list[str] | None = None,
     n: int | None = None,
@@ -40,17 +43,20 @@ def show_images(
                        n=3 → first/middle/last, etc.).
         3. default   — first, middle, last (today's behavior).
 
-    If `frames_detections` is provided, each selected frame is annotated via
-    `draw_tracked_detections` before being shown — this replaces the old
-    `show_annotated_images` helper.
+    If `frames_detections` is provided, each selected frame is annotated before
+    being shown. Accepts DetectionOutput or TrackingOutput directly, or the raw
+    .frames list from either.
 
     Parameters:
         - frames: list of BGR images.
-        - frames_detections: optional per-frame detections to overlay.
+        - frames_detections: optional detections/tracks to overlay.
         - titles: optional list of titles, one per *selected* frame.
         - n: number of evenly-spaced frames to show.
         - indexes: explicit list of frame indexes to show.
     """
+    if isinstance(frames_detections, (DetectionOutput, TrackingOutput)):
+        frames_detections = frames_detections.frames
+
     if indexes is not None:
         selected = list(indexes)
     elif n is not None:
@@ -67,7 +73,9 @@ def show_images(
     for i, frame_idx in enumerate(selected):
         frame = frames[frame_idx]
         if annotated:
-            frame = draw_tracked_detections(frame, frames_detections[frame_idx])
+            fd = frames_detections[frame_idx]
+            frame = (draw_tracked_detections(frame, fd) if isinstance(fd, FrameTrackedDetections)
+                     else draw_detections(frame, fd))
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
         axes[i].imshow(rgb_frame)
@@ -106,3 +114,57 @@ def show_hist(
     ax.set_title(title)
     ax.set_xlim([0, 256])
     plt.show()
+
+
+def show_detection_table(results: dict[str, EvaluationTrackingResult | DetectionMetrics]) -> None:
+    """Display a detection metrics table with one row per camera/sequence.
+
+    Parameters:
+        - results: mapping of camera name to EvaluationTrackingResult or DetectionMetrics.
+    """
+    rows = []
+    for camera, result in results.items():
+        d = result.detection if isinstance(result, EvaluationTrackingResult) else result
+        rows.append({
+            "Camera": camera,
+            "TP": d.tp, "FP": d.fp, "FN": d.fn,
+            "Precision": round(d.precision, 3), "Recall": round(d.recall, 3),
+            "F1": round(d.f1, 3), "Mean IoU": round(d.mean_iou, 3),
+        })
+    display(pd.DataFrame(rows).set_index("Camera"))
+
+
+def show_identity_table(results: dict[str, EvaluationTrackingResult]) -> None:
+    """Display an identity (IDF1) metrics table with one row per camera/sequence.
+
+    Parameters:
+        - results: mapping of camera name to EvaluationTrackingResult.
+    """
+    rows = []
+    for camera, result in results.items():
+        id_ = result.identity
+        rows.append({
+            "Camera": camera,
+            "TP": id_.tp, "FP": id_.fp, "FN": id_.fn,
+            "IDP": round(id_.precision, 3), "IDR": round(id_.recall, 3), "IDF1": round(id_.f1, 3),
+        })
+    display(pd.DataFrame(rows).set_index("Camera"))
+
+
+def show_hota_table(results: dict[str, EvaluationTrackingResult]) -> None:
+    """Display a HOTA metrics table with one row per camera/sequence.
+
+    Per-alpha breakdowns are omitted; use HOTAMetrics.hota_per_alpha etc. for those.
+
+    Parameters:
+        - results: mapping of camera name to EvaluationTrackingResult.
+    """
+    rows = []
+    for camera, result in results.items():
+        h = result.hota
+        rows.append({
+            "Camera": camera,
+            "HOTA": round(h.hota, 3), "DetA": round(h.deta, 3),
+            "AssA": round(h.assa, 3), "LocA": round(h.loca, 3),
+        })
+    display(pd.DataFrame(rows).set_index("Camera"))

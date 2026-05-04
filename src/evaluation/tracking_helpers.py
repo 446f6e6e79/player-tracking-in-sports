@@ -8,17 +8,116 @@ if not hasattr(np, "asfarray"):
 
 import motmetrics as mm
 
-from src.types.tracking import Detection, TrackingOutput, dets_to_xywh
+from src.types.tracking import Detection, DetectionOutput, TrackingOutput, dets_to_xywh
+
+
+def _validate_strictly_increasing(indices: list[int], label: str) -> None:
+    for prev, curr in zip(indices, indices[1:]):
+        if curr <= prev:
+            raise ValueError(
+                f"{label} frame indices must be strictly increasing. "
+                f"Found non-increasing pair: {prev}, {curr}."
+            )
+
+
+def validate_evaluation_inputs(
+    ground_truth: DetectionOutput | TrackingOutput,
+    predictions: DetectionOutput | TrackingOutput,
+    context: str,
+) -> int:
+    """Validate evaluation inputs and infer the prediction cadence stride.
+
+    Returns:
+        The stride between evaluated prediction frames and the underlying
+        full-frame prediction sequence. A return value of 1 means the ground
+        truth and predictions are aligned frame-for-frame. A value > 1 means the
+        prediction sequence is denser than the annotated ground truth and should
+        be sampled at that cadence.
+    """
+    if not ground_truth.frames:
+        raise ValueError(f"{context}: ground-truth output has no frames.")
+    if not predictions.frames:
+        raise ValueError(f"{context}: prediction output has no frames.")
+
+    if ground_truth.camera_id != predictions.camera_id:
+        raise ValueError(
+            f"{context}: camera mismatch: GT={ground_truth.camera_id}, "
+            f"predictions={predictions.camera_id}."
+        )
+
+    gt_indices = [frame.frame_index for frame in ground_truth.frames]
+    pred_indices = [frame.frame_index for frame in predictions.frames]
+
+    _validate_strictly_increasing(gt_indices, f"{context} ground-truth")
+    _validate_strictly_increasing(pred_indices, f"{context} predictions")
+
+    if gt_indices[0] != 0:
+        raise ValueError(
+            f"{context}: ground-truth must be 0-based. "
+            f"First frame_index is {gt_indices[0]}."
+        )
+    if pred_indices[0] != 0:
+        raise ValueError(
+            f"{context}: predictions must be 0-based. "
+            f"First frame_index is {pred_indices[0]}."
+        )
+
+    if len(pred_indices) == len(gt_indices):
+        if gt_indices != pred_indices:
+            gt_set = set(gt_indices)
+            pred_set = set(pred_indices)
+            gt_only = sorted(gt_set - pred_set)[:5]
+            pred_only = sorted(pred_set - gt_set)[:5]
+
+            raise ValueError(
+                f"{context}: frame index mismatch. "
+                f"GT len/range={len(gt_indices)}/{gt_indices[0]}..{gt_indices[-1]}, "
+                f"pred len/range={len(pred_indices)}/{pred_indices[0]}..{pred_indices[-1]}. "
+                f"GT-only sample={gt_only}, pred-only sample={pred_only}."
+            )
+        return 1
+
+    if len(pred_indices) % len(gt_indices) == 0:
+        stride = len(pred_indices) // len(gt_indices)
+        if stride <= 0:
+            raise ValueError(f"{context}: invalid inferred prediction stride {stride}.")
+        if gt_indices != list(range(len(gt_indices))):
+            gt_set = set(gt_indices)
+            pred_set = set(pred_indices)
+            gt_only = sorted(gt_set - pred_set)[:5]
+            pred_only = sorted(pred_set - gt_set)[:5]
+
+            raise ValueError(
+                f"{context}: ground-truth frame indices must be contiguous sample indices when predictions are denser. "
+                f"GT len/range={len(gt_indices)}/{gt_indices[0]}..{gt_indices[-1]}, "
+                f"pred len/range={len(pred_indices)}/{pred_indices[0]}..{pred_indices[-1]}, "
+                f"inferred stride={stride}. GT-only sample={gt_only}, pred-only sample={pred_only}."
+            )
+        return stride
+
+    gt_set = set(gt_indices)
+    pred_set = set(pred_indices)
+    gt_only = sorted(gt_set - pred_set)[:5]
+    pred_only = sorted(pred_set - gt_set)[:5]
+
+    raise ValueError(
+        f"{context}: frame index mismatch. "
+        f"GT len/range={len(gt_indices)}/{gt_indices[0]}..{gt_indices[-1]}, "
+        f"pred len/range={len(pred_indices)}/{pred_indices[0]}..{pred_indices[-1]}. "
+        f"GT-only sample={gt_only}, pred-only sample={pred_only}."
+    )
 
 
 def _iter_frame_pairs(
     ground_truth: TrackingOutput,
     pred_index: dict[int, list[Detection]],
+    frame_stride: int,
 ) -> Iterator[tuple[int, list[Detection], list[Detection]]]:
     """Yield (frame_index, gt_detections, pred_detections) for each GT frame."""
-    for frame in ground_truth.frames:
+    for gt_pos, frame in enumerate(ground_truth.frames):
         gt_dets = frame.detections
-        pred_dets = pred_index.get(frame.frame_index, [])
+        pred_frame_index = gt_pos * frame_stride
+        pred_dets = pred_index.get(pred_frame_index, [])
         yield frame.frame_index, gt_dets, pred_dets
 
 
@@ -40,6 +139,8 @@ def build_accumulator(
     Returns:
         Populated MOTAccumulator ready for metric computation.
     """
+    frame_stride = validate_evaluation_inputs(ground_truth, predictions, context="Tracking evaluation")
+
     # Index predictions by frame for efficient lookup
     pred_index = {frame.frame_index: frame.detections for frame in predictions.frames}
 
@@ -56,7 +157,7 @@ def build_accumulator(
     # MOT Accumulator with auto_id=False since we manage IDs manually; this allows us to use class_name for GT identity and track_id for predicted identity
     acc = mm.MOTAccumulator(auto_id=False)
 
-    for frame_index, gt_detections, pred_detections in _iter_frame_pairs(ground_truth, pred_index):
+    for frame_index, gt_detections, pred_detections in _iter_frame_pairs(ground_truth, pred_index, frame_stride):
         # Build ID arrays for this frame based on GT class_name and predicted track_id
         gt_ids   = [gt_class_to_id[d.class_name] for d in gt_detections]
         pred_ids = [d.track_id                    for d in pred_detections]
@@ -87,6 +188,8 @@ def build_hota_data(
         Dict with keys: num_timesteps, num_gt_ids, num_tracker_ids, num_gt_dets,
         num_tracker_dets, gt_ids, tracker_ids, similarity_scores.
     """
+    frame_stride = validate_evaluation_inputs(ground_truth, predictions, context="HOTA evaluation")
+
     # Index predictions by frame
     pred_index = {frame.frame_index: frame.detections for frame in predictions.frames}
 
@@ -95,12 +198,13 @@ def build_hota_data(
     pred_track_to_id: dict[int, int] = {}
 
     # Collect all unique IDs in a single pass to guarantee stable ordering
-    for frame in ground_truth.frames:
+    for gt_pos, frame in enumerate(ground_truth.frames):
         for detection in frame.detections:
             # Map GT class_name to integer ID if not seen before
             if detection.class_name not in gt_class_to_id:
                 gt_class_to_id[detection.class_name] = len(gt_class_to_id)
-        for detection in pred_index.get(frame.frame_index, []):
+        pred_frame_index = gt_pos * frame_stride
+        for detection in pred_index.get(pred_frame_index, []):
             if detection.track_id not in pred_track_to_id:
                 pred_track_to_id[detection.track_id] = len(pred_track_to_id)
 
@@ -112,7 +216,7 @@ def build_hota_data(
     total_tracker_dets = 0
 
     # Iterate over frames in ground truth
-    for _, gt_detections, pred_detections in _iter_frame_pairs(ground_truth, pred_index):
+    for _, gt_detections, pred_detections in _iter_frame_pairs(ground_truth, pred_index, frame_stride):
         # Map GT class_name and predicted track_id to integer IDs for this frame
         gt_ids = np.array([gt_class_to_id[detection.class_name]  for detection in gt_detections],   dtype=int)
         pred_ids = np.array([pred_track_to_id[detection.track_id]   for detection in pred_detections], dtype=int)

@@ -148,9 +148,16 @@ def _write_output_files(
         if out_path.exists():
             print(f"{out_path}  skipped (already exists)")
             continue
+
+        # Normalize annotation frame indices to 0-based for runtime consistency.
+        frame_items = sorted(detections_by_cam_frame[cam].items())
+        if not frame_items:
+            continue
+        first_frame_index = frame_items[0][0]
+
         frames = [
-            {"frame_index": fi, "detections": dets}
-            for fi, dets in sorted(detections_by_cam_frame[cam].items())
+            {"frame_index": fi - first_frame_index, "detections": dets}
+            for fi, dets in frame_items
         ]
         out = {"source": source, "camera_id": cam, "fps": fps, "frames": frames}
         with out_path.open("w") as f:
