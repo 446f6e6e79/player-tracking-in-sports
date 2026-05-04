@@ -31,6 +31,7 @@ from src.detection.yolo_detection import run_yolo_detection, yolo_to_detection_o
 from src.tracking.deep_sort import apply_deep_sort
 from src.tracking.label_resolution import resolve_track_labels
 from src.types.tracking import merge_detections
+from src.utils.model_loading import ensure_default_model
 from src.utils.video import get_frames, open_video, produce_tracking_output_video
 
 
@@ -41,8 +42,9 @@ def parse_args() -> argparse.Namespace:
                    help="Directory containing the source videos.")
     p.add_argument("--output-dir", default="results",
                    help="Root directory for produced videos.")
-    p.add_argument("--model", default="models/fine_tuned_models/v2-yolo11m_finetuned.pt",
-                   help="Path to the fine-tuned YOLO weights.")
+    p.add_argument("--model", default="models/fine_tuned_models/best.pt",
+                   help="Path to the fine-tuned YOLO weights. If the file is missing, "
+                        "best.pt is auto-downloaded from the Hugging Face repo.")
     p.add_argument("--max-frames", type=int, default=-1,
                    help="-1 to read every frame, otherwise stop after N frames.")
     p.add_argument("--save-detection-video", action="store_true",
@@ -82,7 +84,8 @@ def main() -> None:
     print(f"Loaded {len(frames_color)} frames at {fps:.2f} fps from {video_path}")
 
     # 2. Two-pass YOLO.
-    model = YOLO(args.model)
+    model_path = ensure_default_model(args.model)
+    model = YOLO(str(model_path))
     player_classes = list(range(1, len(model.names)))  # everything except ball (class 0)
 
     # Run the player pass
