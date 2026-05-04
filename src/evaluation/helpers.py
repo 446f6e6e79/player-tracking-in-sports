@@ -14,7 +14,7 @@ from src.types.tracking import Detection, DetectionOutput, TrackingOutput, dets_
 def _iter_frame_pairs(
     ground_truth: TrackingOutput,
     pred_index: dict[int, list[Detection]],
-    frame_stride: int = 5,
+    frame_stride: int,
 ) -> Iterator[tuple[int, list[Detection], list[Detection]]]:
     """Yield (frame_index, gt_detections, pred_detections) for each GT frame."""
     for gt_pos, frame in enumerate(ground_truth.frames):
@@ -27,7 +27,7 @@ def build_accumulator(
     ground_truth: TrackingOutput | DetectionOutput,
     predictions: TrackingOutput | DetectionOutput,
     iou_threshold: float,
-    frame_stride: int = 5,
+    frame_stride: int,
 ) -> mm.MOTAccumulator:
     """Build a motmetrics accumulator over all GT-annotated frames.
     This accumulator is a basic data structure that stores information across the all frames
@@ -86,7 +86,7 @@ def build_accumulator(
 def build_hota_data(
     ground_truth: TrackingOutput,
     predictions: TrackingOutput,
-    frame_stride: int = 5,
+    frame_stride: int,
 ) -> dict:
     """
     Build the data dict expected by trackeval.metrics.HOTA.eval_sequence().

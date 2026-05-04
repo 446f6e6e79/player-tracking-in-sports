@@ -43,20 +43,22 @@ def evaluate_detection(
     ground_truth: DetectionOutput,
     predictions: DetectionOutput,
     iou_threshold: float = 0.5,
+    frame_stride: int = 5,
 ) -> DetectionMetrics:
     """Evaluate predicted detections against ground-truth annotations.
 
     Suitable for detection-only models (e.g. MOG2). Identity is not evaluated —
-    only bbox-level quality. 
+    only bbox-level quality.
 
     Parameters:
         - ground_truth: annotations (DetectionOutput).
         - predictions: detector output (DetectionOutput).
         - iou_threshold: minimum IoU for a prediction to count as a true positive (default 0.5).
+        - frame_stride: step between GT annotation frames and prediction frame indices (default 5).
     Returns:
         DetectionMetrics with tp, fp, fn, precision, recall, f1, mean_iou.
     """
     # build_accumulator auto-detects use_identity=False for DetectionOutput
-    acc = build_accumulator(ground_truth, predictions, iou_threshold)
+    acc = build_accumulator(ground_truth, predictions, iou_threshold, frame_stride)
 
     return compute_detection_metrics(acc)

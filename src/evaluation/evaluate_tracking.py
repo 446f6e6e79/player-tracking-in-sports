@@ -51,6 +51,7 @@ def compute_identity_metrics(acc: mm.MOTAccumulator) -> IdentityMetrics:
 def compute_hota(
     ground_truth: TrackingOutput,
     predictions: TrackingOutput,
+    frame_stride: int = 5,
 ) -> HOTAMetrics:
     """Compute HOTA metrics between ground-truth annotations and tracker output using trackeval.
     Parameters:
@@ -65,7 +66,7 @@ def compute_hota(
             - hota_per_alpha, deta_per_alpha, assa_per_alpha, loca_per_alpha: lists of values at each alpha threshold
     Note: trackeval.metrics.HOTA.eval_sequence() computes HOTA at multiple alpha thresholds (e.g. 0.5, 0.55, ..., 0.95) and returns the average as well as the per-alpha values.
     """
-    data = build_hota_data(ground_truth, predictions)
+    data = build_hota_data(ground_truth, predictions, frame_stride)
     res  = trackeval.metrics.HOTA().eval_sequence(data)
 
     return HOTAMetrics(
@@ -86,20 +87,21 @@ def evaluate_tracking(
     ground_truth: TrackingOutput,
     predictions: TrackingOutput,
     iou_threshold: float = 0.5,
+    frame_stride: int = 5,
 ) -> TrackingMetrics:
     """Evaluate predicted tracking output against ground-truth annotations.
     Parameters:
         - ground_truth: TrackingOutput from annotation files (source="ground_truth").
         - predictions: TrackingOutput from a tracker.
         - iou_threshold: minimum IoU for a prediction to count as a true positive (default 0.5).
+        - frame_stride: step between GT annotation frames and prediction frame indices (default 5).
     Returns:
         TrackingMetrics composed of DetectionMetrics, IdentityMetrics, HOTAMetrics.
     """
     # Build a shared accumulator once; all motmetrics-based compute_* functions reuse it
-    acc = build_accumulator(ground_truth, predictions, iou_threshold)
+    acc = build_accumulator(ground_truth, predictions, iou_threshold, frame_stride)
 
     return TrackingMetrics(
-        detection = compute_detection_metrics(acc),
         identity  = compute_identity_metrics(acc),
-        hota      = compute_hota(ground_truth, predictions),
+        hota      = compute_hota(ground_truth, predictions, frame_stride),
     )
