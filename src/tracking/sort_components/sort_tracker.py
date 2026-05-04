@@ -46,7 +46,7 @@ class SortTracker:
         Returns a list of TrackedDetections for the current frame, with assigned track IDs.
         """
 
-        # 1. Predict every existing track one frame forward.
+        # 1. Predict every existing track one frame forward
         for track in self.tracks:
             track.predict(self.kf)
 
@@ -54,25 +54,29 @@ class SortTracker:
         tentative_indices = [i for i, t in enumerate(self.tracks) if t.is_tentative()]
         all_det_indices = list(range(len(detections)))
 
-        # 2. Match confirmed tracks against all detections by IoU.
-        matches_a, um_tracks_a, um_dets = min_cost_matching(
+        # 2. Match confirmed tracks against all detections by IoU
+        matches_a, unmatched_tracks_a, unmatched_detections = min_cost_matching(
             self.tracks, detections,
             confirmed_indices, all_det_indices,
             self.max_iou_distance,
         )
         
-        # 3. Match tentative tracks against the residual.
-        matches_b, um_tracks_b, um_dets = min_cost_matching(
+        # 3. Match tentative tracks against the unmatched detections
+        matches_b, unmatched_tracks_b, _ = min_cost_matching(
             self.tracks, detections,
-            tentative_indices, um_dets,
+            tentative_indices, unmatched_detections,
             self.max_iou_distance,
         )
+        
+        # Combine matches and unmatched tracks from both stages.
         matches = matches_a + matches_b
-        unmatched_tracks = um_tracks_a + um_tracks_b
+        unmatched_tracks = unmatched_tracks_a + unmatched_tracks_b
 
-        # 4. Apply matched updates and mark misses.
+        # Run the KF update for each matched track with its assigned detection.
         for ti, di in matches:
             self.tracks[ti].update(self.kf, detections[di])
+        
+        # Mark unmatched tracks as missed (no detection assigned this frame).
         for ti in unmatched_tracks:
             self.tracks[ti].mark_missed()
 
@@ -80,11 +84,11 @@ class SortTracker:
         # self.tracks indices.
         matched_id_by_index = {ti: self.tracks[ti].track_id for ti, _ in matches}
 
-        # 5. Initiate new tentative tracks.
-        for di in um_dets:
+        # Initiate a new track for each unmatched detection.
+        for di in unmatched_detections:
             self._initiate_track(detections[di])
 
-        # 6. Drop deleted tracks.
+        # Drop all the tracks that are marked deleted (too old, never confirmed, etc).
         self.tracks = [t for t in self.tracks if not t.is_deleted()]
 
         out: list[TrackedDetection] = []

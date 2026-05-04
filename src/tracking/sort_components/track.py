@@ -94,7 +94,9 @@ class Track:
 
     def predict(self, kf: KalmanFilter) -> None:
         """Advance the filter one step and bump bookkeeping counters."""
+        # Update the mean and covariance using the Kalman filter's predict step.
         self.mean, self.covariance = kf.predict(self.mean, self.covariance)
+        # Increment age and time since update, which are used for track management.
         self.age += 1
         self.time_since_update += 1
 
@@ -104,13 +106,23 @@ class Track:
         detection: Detection,
         feature: np.ndarray | None = None,
     ) -> None:
-        """Apply a matched detection: Kalman update + reset miss counter."""
+        """
+        Perform Kalman filter measurement update and update track state.
+        Parameters:
+            - kf: The KalmanFilter instance to use for the update step.
+            - detection: The Detection that matched this track (carries class_id / class_name).
+            - feature: Optional appearance feature vector for this detection (L2-normalized).
+        """
+        # Convert the detection's bounding box to the measurement space (cx, cy, a, h)
         measurement = xyxy_to_xyah(detection.get_bbox_tuple())
+        # Update the mean and covariance using the Kalman filter's update step with the new measurement
         self.mean, self.covariance = kf.update(self.mean, self.covariance, measurement)
 
         self.hits += 1
         self.time_since_update = 0
         self.last_detection = detection
+        
+        # Append the new feature to the track's feature gallery if provided
         if feature is not None:
             self.features.append(feature)
 
