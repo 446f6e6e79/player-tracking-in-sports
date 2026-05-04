@@ -7,7 +7,6 @@ from roboflow import Roboflow
 
 from src.utils.annotations.process_coco_annotations import process_coco_annotations
 
-# Name of the COCO annotation file produced by Roboflow inside each split directory
 _COCO_FILENAME = "_annotations.coco.json"
 
 
@@ -20,77 +19,45 @@ def download_annotations(
     split: str = "train",
     type: str = "coco-mmdetection",
 ) -> None:
-    """
-    Download the Roboflow annotation file for the specified dataset
-    After download, if in COCO MMDetection format, the annotations are processed in a compatible way for our evaluation pipeline.
-    Otherwise, the annotation file is copied as-is without processing (e.g. for YOLO format)
+    """Download Roboflow annotations and write per-camera JSON files to output_dir.
+    COCO MMDetection format is processed into per-camera JSON with 0-based frame indices.
+    Other formats are copied as-is.
     Parameters:
-        - workspace (str): Roboflow workspace name
-        - project (str): Roboflow project name
-        - version (int): dataset version number to download
-        - api_key (str): Roboflow API key
-        - output_dir (str | Path): directory where the annotation JSON will be written
-        - split (str): dataset split to download (default: "train")
-        - type (str): dataset format to download (default: "coco-mmdetection")
-    Returns:
-        - None (writes _annotations.coco.json to output_dir)
+        - workspace: Roboflow workspace name
+        - project: Roboflow project name
+        - version: dataset version number
+        - api_key: Roboflow API key
+        - output_dir: directory where annotation JSON files will be written
+        - split: dataset split to download (default: "train")
+        - type: dataset format (default: "coco-mmdetection")
     """
     output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Downloading dataset {project} v{version} from Roboflow workspace '{workspace}'...")
-
-    # Download into a temp directory so Roboflow always gets a clean, empty location
+    print(f"Downloading {project} v{version} from '{workspace}'...")
     rf = Roboflow(api_key=api_key)
+
+    # Roboflow's Python SDK doesn't support direct download to a specified directory, so we use a temporary directory and then move the files.
     with tempfile.TemporaryDirectory() as tmp:
-        # The download method returns a Dataset object with a 'location' attribute pointing to the downloaded files
+
+        # Define the dataset type to download based on the specified format.
         dataset = rf.workspace(workspace).project(project).version(version).download(type, location=tmp, overwrite=True)
+        split_dir = Path(dataset.location) / split
 
-        # The dataset is downloaded as a directory containing the requested split (e.g. "train/") with the COCO JSON inside it.
-        dataset_dir = Path(dataset.location)
-        print(f"Downloaded to: {dataset_dir}")
-
-        # Locate the COCO annotation JSON in the requested split subdirectory
-        annotation_src = dataset_dir / split / _COCO_FILENAME
-        if not annotation_src.exists():
-            raise FileNotFoundError(
-                f"Could not find {split}/{_COCO_FILENAME} inside {dataset_dir}. "
-            )
-
-        # Load and process the COCO annotations directly; temp dir is removed on context exit
-        output_dir.mkdir(parents=True, exist_ok=True)
+        # Process the downloaded annotations based on the specified format. 
         if type == "coco-mmdetection":
-            print(f"Processing COCO annotations from {annotation_src} into {output_dir}...")
-            coco = _load_coco_json(annotation_src)
-            process_coco_annotations(coco, output_dir)
+            # For COCO format, we need to process the annotations into per-camera JSON files with 0-based frame indices.
+            annotation_src = split_dir / _COCO_FILENAME
+            if not annotation_src.exists():
+                raise FileNotFoundError(f"Could not find {split}/{_COCO_FILENAME} inside {dataset.location}")
+            with annotation_src.open() as f:
+                process_coco_annotations(json.load(f), output_dir)
         else:
-            # For other formats, copy the annotation JSON as-is without processing
-            print(f"Copying annotation file from {annotation_src} to {output_dir} without processing...")
-            _copy_annotation(dataset_dir / split, output_dir)
+            # For other formats, we assume they are already in the desired format and just copy them to the output directory.
+            src = next(split_dir.glob("*.json"), None)
+            if src is None:
+                raise FileNotFoundError(f"No JSON annotation file found in {split_dir}")
+            shutil.copy2(src, output_dir / src.name)
+            print(f"Copied {src.name} to {output_dir}")
 
-    print("Download and processing complete.")
-
-
-def _copy_annotation(split_dir: Path, output_dir: Path) -> None:
-    '''
-    Copy the first JSON annotation file found in split_dir to output_dir.
-    Parameters:
-        - split_dir (Path): directory of the downloaded split (e.g. dataset_dir / "train")
-        - output_dir (Path): destination directory
-    Returns:
-        - None (copies the file to output_dir preserving its filename)
-    '''
-    # Find the first JSON file in the split directory
-    src = next(split_dir.glob("*.json"), None)
-    if src is None:
-        raise FileNotFoundError(f"No JSON annotation file found in {split_dir}")
-
-    # Copy to the output directory, keeping the original filename
-    dst = output_dir / src.name
-    shutil.copy2(src, dst)
-    print(f"Copied annotation to {dst}")
-
-
-def _load_coco_json(file_path: str | Path) -> dict:
-    '''Load COCO annotation JSON file.'''
-    with Path(file_path).open() as f:
-        return json.load(f)
+    print("Download complete.")

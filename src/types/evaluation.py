@@ -38,10 +38,10 @@ class HOTAMetrics:
 
 
 @dataclass
-class EvaluationTrackingResult:
+class TrackingMetrics:
     """Top-level container returned by evaluate_tracking().
     Each field is a self-contained metric family that can be inspected independently.
     """
-    detection: DetectionMetrics # Bbox-level detection quality, IoU-matched per frame
     identity: IdentityMetrics   # ID-level metrics (IDF1 family) over the whole sequence
     hota: HOTAMetrics           # Higher Order Tracking Accuracy (Luiten et al., IJCV 2021) with scalar averages and per-alpha breakdowns
+

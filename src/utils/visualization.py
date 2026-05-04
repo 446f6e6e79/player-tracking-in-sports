@@ -6,7 +6,7 @@ from IPython.display import display
 
 from src.utils.drawing import draw_detections, draw_tracked_detections
 from src.types.tracking import DetectionOutput, FrameDetections, FrameTrackedDetections, TrackingOutput
-from src.types.evaluation import DetectionMetrics, EvaluationTrackingResult
+from src.types.evaluation import DetectionMetrics, TrackingMetrics
 
 def show_image(
     frame: cv2.Mat,
@@ -116,29 +116,28 @@ def show_hist(
     plt.show()
 
 
-def show_detection_table(results: dict[str, EvaluationTrackingResult | DetectionMetrics]) -> None:
+def show_detection_table(results: dict[str, DetectionMetrics]) -> None:
     """Display a detection metrics table with one row per camera/sequence.
 
     Parameters:
-        - results: mapping of camera name to EvaluationTrackingResult or DetectionMetrics.
+        - results: mapping of camera name to DetectionMetrics.
     """
     rows = []
     for camera, result in results.items():
-        d = result.detection if isinstance(result, EvaluationTrackingResult) else result
         rows.append({
             "Camera": camera,
-            "TP": d.tp, "FP": d.fp, "FN": d.fn,
-            "Precision": round(d.precision, 3), "Recall": round(d.recall, 3),
-            "F1": round(d.f1, 3), "Mean IoU": round(d.mean_iou, 3),
+            "TP": result.tp, "FP": result.fp, "FN": result.fn,
+            "Precision": round(result.precision, 3), "Recall": round(result.recall, 3),
+            "F1": round(result.f1, 3), "Mean IoU": round(result.mean_iou, 3),
         })
     display(pd.DataFrame(rows).set_index("Camera"))
 
 
-def show_identity_table(results: dict[str, EvaluationTrackingResult]) -> None:
+def show_identity_table(results: dict[str, TrackingMetrics]) -> None:
     """Display an identity (IDF1) metrics table with one row per camera/sequence.
 
     Parameters:
-        - results: mapping of camera name to EvaluationTrackingResult.
+        - results: mapping of camera name to TrackingMetrics.
     """
     rows = []
     for camera, result in results.items():
@@ -151,13 +150,13 @@ def show_identity_table(results: dict[str, EvaluationTrackingResult]) -> None:
     display(pd.DataFrame(rows).set_index("Camera"))
 
 
-def show_hota_table(results: dict[str, EvaluationTrackingResult]) -> None:
+def show_hota_table(results: dict[str, TrackingMetrics]) -> None:
     """Display a HOTA metrics table with one row per camera/sequence.
 
     Per-alpha breakdowns are omitted; use HOTAMetrics.hota_per_alpha etc. for those.
 
     Parameters:
-        - results: mapping of camera name to EvaluationTrackingResult.
+        - results: mapping of camera name to TrackingMetrics.
     """
     rows = []
     for camera, result in results.items():

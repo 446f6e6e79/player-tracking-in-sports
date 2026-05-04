@@ -14,6 +14,7 @@ def process_coco_annotations(
     Transformations applied:
         - Splits annotations by camera, inferred from image file names (e.g. "out2_frame_0001.jpg" → "cam_2")
         - Extracts frame index as an integer (e.g. "frame_0001" → 1)
+        - Normalizes frame indices to 0-based contiguous (relative to first frame in each camera)
         - Converts bounding boxes from COCO format [x, y, w, h] to corner format {x1, y1, x2, y2}
         - Maps category IDs to class names and includes confidence scores (ground truth: 1.0)
     Parameters:
@@ -22,7 +23,7 @@ def process_coco_annotations(
         - fps (float): video frames per second to store in the output JSON (default: 25.0)
         - source (str): source label to store in the output JSON (default: "ground_truth")
     Returns:
-        - None (writes per-camera JSON files to outdir)
+        - None (writes per-camera JSON files to outdir with 0-based frame indices)
     """
     # Process the COCO data to create mappings and transform annotations into per-camera detections
     cat_name = _create_category_mapping(coco)
@@ -77,7 +78,9 @@ def _process_images(coco: dict) -> tuple[dict[int, str], dict[int, int]]:
             continue
 
         # Extract frame index from file name, which is expected to contain "frame_{index}"
-        frame_index = int(img["file_name"].split("frame_")[1].split("_")[0])
+        frame_part = img["file_name"].split("frame_")[1]
+        # Extract just the numeric part before the next underscore or file extension
+        frame_index = int(frame_part.split("_")[0].split(".")[0])
 
         # Store mappings
         image_id_to_cam[img["id"]]   = cam
