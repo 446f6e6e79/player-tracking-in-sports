@@ -1,12 +1,6 @@
 import os
 from pathlib import Path
 
-# Point urllib at certifi's CA bundle. Without this, the macOS Python.app
-# distribution falls back to a trust store that fails CDN cert validation.
-import certifi
-os.environ.setdefault("SSL_CERT_FILE", certifi.where())
-os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
-
 import cv2
 import numpy as np
 import torch
@@ -34,9 +28,9 @@ _OSNET_FACTORIES = {
     "osnet_ibn_x1_0": osnet_ibn_x1_0,
 }
 
-# ImageNet stats — the preprocessing torchreid's FeatureExtractor used. Keeping
-# these identical preserves embedding compatibility with previously-tuned
-# cosine-distance thresholds in DeepSORT.
+# ImageNet stats — the preprocessing torchreid's FeatureExtractor used.
+# These are used to normalize the input crops before feeding them to OSNet, 
+# and are pre-broadcasted to the target device for efficiency.
 _IMAGENET_MEAN = (0.485, 0.456, 0.406)
 _IMAGENET_STD = (0.229, 0.224, 0.225)
 
