@@ -1,0 +1,116 @@
+from src.tracking.sort_components import (
+    KalmanFilter,
+    Track,
+    min_cost_matching,
+    xyxy_to_xyah,
+)
+
+from src.types.tracking import Detection, TrackedDetection
+
+class SortTracker:
+    """
+    Simple Online and Realtime Tracking (SORT) implementation.
+    SORT is a lightweight tracking algorithm that uses a Kalman Filter for motion prediction and the 
+    Hungarian algorithm for data association based on IoU.
+    SORT does not use appearance features and relies solely on spatial information, making it fast but less robust to occlusions.
+    Parameters:
+        - max_iou_distance: Maximum IOU distance for matching.
+        - max_age: Maximum number of frames to keep "alive" without matches.
+        - n_init: Number of consecutive matches needed to confirm a track.
+    """
+    def __init__(
+        self,
+        max_iou_distance: float,
+        max_age: int,
+        n_init: int
+    ) -> None:
+        self.max_iou_distance = max_iou_distance
+        self.max_age = max_age
+        self.n_init = n_init
+
+        self.kf = KalmanFilter()
+        # List of active tracks. Each track has its own state and lifecycle.
+        self.tracks: list[Track] = []
+        self._next_id = 1
+
+    def update(self, detections: list[Detection]) -> list[TrackedDetection]:
+        """
+        Run the SORT update cycle for the current frame's detections.
+        Steps:
+            1. Predict every existing track one frame forward (Kalman Filter)
+            2. Match confirmed tracks against all detections by IoU.
+            3. Match tentative tracks against the residual.
+            4. Apply matched updates and mark misses.
+            5. Initiate new tentative tracks for unmatched detections.
+            6. Drop deleted tracks.
+        Returns a list of TrackedDetections for the current frame, with assigned track IDs.
+        """
+
+        # 1. Predict every existing track one frame forward
+        for track in self.tracks:
+            track.predict(self.kf)
+
+        confirmed_indices = [i for i, t in enumerate(self.tracks) if t.is_confirmed()]
+        tentative_indices = [i for i, t in enumerate(self.tracks) if t.is_tentative()]
+        all_det_indices = list(range(len(detections)))
+
+        # 2. Match confirmed tracks against all detections by IoU
+        matches_a, unmatched_tracks_a, unmatched_detections = min_cost_matching(
+            self.tracks, detections,
+            confirmed_indices, all_det_indices,
+            self.max_iou_distance,
+        )
+        
+        # 3. Match tentative tracks against the unmatched detections
+        matches_b, unmatched_tracks_b, _ = min_cost_matching(
+            self.tracks, detections,
+            tentative_indices, unmatched_detections,
+            self.max_iou_distance,
+        )
+        
+        # Combine matches and unmatched tracks from both stages.
+        matches = matches_a + matches_b
+        unmatched_tracks = unmatched_tracks_a + unmatched_tracks_b
+
+        # Run the KF update for each matched track with its assigned detection.
+        for ti, di in matches:
+            self.tracks[ti].update(self.kf, detections[di])
+        
+        # Mark unmatched tracks as missed (no detection assigned this frame).
+        for ti in unmatched_tracks:
+            self.tracks[ti].mark_missed()
+
+        # Snapshot {track_index -> track_id} BEFORE the prune below shuffles
+        # self.tracks indices.
+        matched_id_by_index = {ti: self.tracks[ti].track_id for ti, _ in matches}
+
+        # Initiate a new track for each unmatched detection.
+        for di in unmatched_detections:
+            self._initiate_track(detections[di])
+
+        # Drop all the tracks that are marked deleted (too old, never confirmed, etc).
+        self.tracks = [t for t in self.tracks if not t.is_deleted()]
+
+        out: list[TrackedDetection] = []
+        for ti, di in matches:
+            d = detections[di]
+            out.append(TrackedDetection(
+                bbox=d.bbox,
+                confidence=d.confidence,
+                class_id=d.class_id,
+                class_name=d.class_name,
+                track_id=matched_id_by_index[ti],
+            ))
+        return out
+
+    def _initiate_track(self, detection: Detection) -> None:
+        mean, covariance = self.kf.initiate(xyxy_to_xyah(detection.get_bbox_tuple()))
+        self.tracks.append(Track(
+            mean=mean,
+            covariance=covariance,
+            track_id=self._next_id,
+            n_init=self.n_init,
+            max_age=self.max_age,
+            detection=detection,
+        ))
+        self._next_id += 1

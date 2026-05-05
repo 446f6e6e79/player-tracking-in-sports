@@ -10,6 +10,7 @@ build/
 .venv/
 data/
 results/
+.env
 
 # Python bytecode files
 *.pyc
@@ -32,3 +33,6 @@ __pycache__/
 *.cb
 *.synctex.gz
 *.fdb_latexmk
+
+# Model checkpoints
+models/
