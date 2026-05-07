@@ -10,6 +10,10 @@ class BoundingBox:
     x2: float
     y2: float
 
+    def get_center(self) -> tuple[float, float]:
+        """Returns the geometric center of the bounding box as (cx, cy)."""
+        return ((self.x1 + self.x2) / 2.0, (self.y1 + self.y2) / 2.0)
+
 
 @dataclass
 class Detection:
