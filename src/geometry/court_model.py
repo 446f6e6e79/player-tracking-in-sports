@@ -56,6 +56,18 @@ WORLD_LANDMARKS_MM: dict[str, np.ndarray] = {
     "three_pt_right_endline_bench":  np.array([ 14000.0, -6600.0, 0.0], dtype=np.float32),
     "three_pt_right_apex":           np.array([  5675.0,     0.0, 0.0], dtype=np.float32),
     "three_pt_right_endline_stands": np.array([ 14000.0,  6600.0, 0.0], dtype=np.float32),
+
+    # Backboard outer corners. Front face 1200 mm inside the endline (x = ±12800),
+    # 1800 mm wide centered on the midline (y = ±900), bottom edge 2900 mm and
+    # top edge 3950 mm above the floor.
+    "backboard_left_top_bench":      np.array([-12800.0, -900.0, 3950.0], dtype=np.float32),
+    "backboard_left_top_stands":     np.array([-12800.0,  900.0, 3950.0], dtype=np.float32),
+    "backboard_left_bottom_bench":   np.array([-12800.0, -900.0, 2900.0], dtype=np.float32),
+    "backboard_left_bottom_stands":  np.array([-12800.0,  900.0, 2900.0], dtype=np.float32),
+    "backboard_right_top_bench":     np.array([ 12800.0, -900.0, 3950.0], dtype=np.float32),
+    "backboard_right_top_stands":    np.array([ 12800.0,  900.0, 3950.0], dtype=np.float32),
+    "backboard_right_bottom_bench":  np.array([ 12800.0, -900.0, 2900.0], dtype=np.float32),
+    "backboard_right_bottom_stands": np.array([ 12800.0,  900.0, 2900.0], dtype=np.float32),
 }
 
 assert set(WORLD_LANDMARKS_MM) == set(LANDMARKS), (

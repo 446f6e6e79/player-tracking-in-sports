@@ -37,6 +37,18 @@ LANDMARK_DIAGRAM_NORM: dict[str, tuple[float, float]] = {
     "three_pt_right_endline_bench":  (0.980, 0.840),
     "three_pt_right_apex":           (0.700, 0.510),
     "three_pt_right_endline_stands": (0.980, 0.220),
+
+    # Backboard outer corners (8). Top vs. bottom is invisible in this top-down
+    # inset, so the (norm_x, norm_y) offsets are just disambiguation hints —
+    # the label tells the user which corner to click.
+    "backboard_left_top_bench":      (0.055, 0.555),
+    "backboard_left_top_stands":     (0.055, 0.485),
+    "backboard_left_bottom_bench":   (0.075, 0.555),
+    "backboard_left_bottom_stands":  (0.075, 0.485),
+    "backboard_right_top_bench":     (0.945, 0.555),
+    "backboard_right_top_stands":    (0.945, 0.485),
+    "backboard_right_bottom_bench":  (0.925, 0.555),
+    "backboard_right_bottom_stands": (0.925, 0.485),
 }
 
 LANDMARKS: tuple[str, ...] = tuple(LANDMARK_DIAGRAM_NORM)
