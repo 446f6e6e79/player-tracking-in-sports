@@ -51,7 +51,17 @@ def parse_args() -> argparse.Namespace:
                    help="Also save the post-NMS detection video.")
     p.add_argument("--save-tracking-video", action="store_true",
                    help="Also save the tracking video before label resolution.")
+    p.add_argument("--force", action="store_true",
+                   help="Overwrite existing pipeline outputs instead of failing.")
     return p.parse_args()
+
+
+def _check_writable(path: Path, force: bool) -> None:
+    """Fail fast if `path` already exists and `force` was not passed."""
+    if path.exists() and not force:
+        raise FileExistsError(
+            f"Refusing to overwrite existing file: {path}. Pass --force to replace it."
+        )
 
 
 def video_path_for(camera: str, input_dir: Path) -> Path:
@@ -122,8 +132,10 @@ def main() -> None:
 
     # Optional: save the detection video with boxes drawn but before tracking.
     if args.save_detection_video:
+        detection_video = out_dir / "detection.mp4"
+        _check_writable(detection_video, args.force)
         print("Saving detection video...")
-        produce_tracking_output_video(frames_color, detection_output, str(out_dir / "detection.mp4"))
+        produce_tracking_output_video(frames_color, detection_output, str(detection_video))
 
     # 5. DeepSORT.
     print("Applying DeepSORT...")
@@ -137,17 +149,26 @@ def main() -> None:
     print("DeepSORT tracking completed.")
 
     if args.save_tracking_video:
+        tracking_video = out_dir / "tracking.mp4"
+        _check_writable(tracking_video, args.force)
         print("Saving tracking video before label resolution...")
-        produce_tracking_output_video(frames_color, tracking_output, str(out_dir / "tracking.mp4"))
+        produce_tracking_output_video(frames_color, tracking_output, str(tracking_video))
 
     # 6. Resolve labels.
     print("Resolving track labels...")
     resolved_output = resolve_track_labels(tracking_output)
 
-    # 7. Final tracking video — always.
-    final_path = out_dir / "tracking_resolved.mp4"
-    print(f"Saving final tracking video with resolved labels to {final_path}...")
-    produce_tracking_output_video(frames_color, resolved_output, str(final_path))
+    # 7. Persist the resolved tracking output (JSON) and render the final video.
+    final_video = out_dir / "tracking_resolved.mp4"
+    final_json = out_dir / "tracking_resolved.json"
+    _check_writable(final_video, args.force)
+    _check_writable(final_json, args.force)
+
+    print(f"Writing resolved tracking output to {final_json}...")
+    resolved_output.write(str(final_json), overwrite=args.force)
+
+    print(f"Saving final tracking video with resolved labels to {final_video}...")
+    produce_tracking_output_video(frames_color, resolved_output, str(final_video))
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,7 @@
+import json
+import os
 from dataclasses import dataclass, field
+
 import numpy as np
 
 
@@ -94,6 +97,88 @@ class TrackingOutput:
     camera_id: str
     fps: float
     frames: list[FrameTrackedDetections] = field(default_factory=list)
+
+    def write(self, path: str, overwrite: bool = False) -> None:
+        """Serialize this TrackingOutput to a JSON file.
+        Parameters:
+            - path (str): Destination file path.
+            - overwrite (bool): If False (default) and `path` already exists,
+              raises FileExistsError instead of overwriting.
+        """
+        if not overwrite and os.path.exists(path):
+            raise FileExistsError(
+                f"Refusing to overwrite existing file: {path}. Pass overwrite=True to replace it."
+            )
+
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+
+        payload = {
+            "source": self.source,
+            "camera_id": self.camera_id,
+            "fps": self.fps,
+            "frames": [
+                {
+                    "frame_index": frame.frame_index,
+                    "detections": [
+                        {
+                            "bbox": {
+                                "x1": det.bbox.x1,
+                                "y1": det.bbox.y1,
+                                "x2": det.bbox.x2,
+                                "y2": det.bbox.y2,
+                            },
+                            "confidence": det.confidence,
+                            "class_id": det.class_id,
+                            "class_name": det.class_name,
+                            "track_id": det.track_id,
+                        }
+                        for det in frame.detections
+                    ],
+                }
+                for frame in self.frames
+            ],
+        }
+
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+
+    @classmethod
+    def read(cls, path: str) -> "TrackingOutput":
+        """Load a TrackingOutput from a JSON file written by `write`.
+        Parameters:
+            - path (str): Source file path.
+        Returns:
+            - TrackingOutput: Reconstructed instance with all detections, including track_ids.
+        """
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"TrackingOutput file not found: {path}")
+
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        frames = [
+            FrameTrackedDetections(
+                frame_index=frame["frame_index"],
+                detections=[
+                    TrackedDetection(
+                        bbox=BoundingBox(**det["bbox"]),
+                        confidence=det["confidence"],
+                        class_id=det["class_id"],
+                        class_name=det["class_name"],
+                        track_id=det["track_id"],
+                    )
+                    for det in frame["detections"]
+                ],
+            )
+            for frame in data["frames"]
+        ]
+
+        return cls(
+            source=data["source"],
+            camera_id=data["camera_id"],
+            fps=data["fps"],
+            frames=frames,
+        )
 
 
 def merge_detections(first: 'DetectionOutput', *rest: 'DetectionOutput') -> 'DetectionOutput':
