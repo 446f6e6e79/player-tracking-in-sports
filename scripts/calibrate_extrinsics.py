@@ -29,7 +29,6 @@ sys.path.insert(0, str(REPO_ROOT))
 
 import numpy as np
 
-from src.geometry.calibration_landmarks import HOOP_HEIGHT_MM
 from src.geometry.extrinsics_calibration import (
     build_extrinsics,
     recover_metric_scale,
@@ -104,11 +103,13 @@ def main() -> None:
 
     scale_result = recover_metric_scale(structure)
     if scale_result is None:
-        print("No (rim, floor_under_rim) pair was triangulated — cannot fix metric scale.")
+        print("No scale pair was triangulated — cannot fix metric scale.")
         return
-    scale, mean_d = scale_result
-    print(f"Scale anchor: mean rim-to-floor distance {mean_d:.4f} (arbitrary units) "
-          f"-> scale = {scale:.4f}  (target {HOOP_HEIGHT_MM} mm)")
+    scale, details = scale_result
+    print(f"\n=== Scale anchor: averaged over {len(details)} pair(s) -> scale = {scale:.4f} ===")
+    for pair, measured, pair_scale in details:
+        print(f"    {pair.a:<28s} <-> {pair.b:<28s} "
+              f"measured={measured:.4f}  target={pair.distance_mm:.0f}mm  scale={pair_scale:.4f}")
 
     t_b_scaled = (t_b * scale).astype(np.float32)
     structure_scaled = {l: (p * scale).astype(np.float32) for l, p in structure.items()}

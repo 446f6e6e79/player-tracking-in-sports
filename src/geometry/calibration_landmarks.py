@@ -1,17 +1,38 @@
-"""
-Court-landmark constants shared between the interactive picker and the
-extrinsics-calibration math. No OpenCV / IO imports — pure data so the
-picker (UI) and the calibration module (geometry) can both depend on this
-without pulling each other in.
-"""
+from dataclasses import dataclass
 
-# Metric scale target: rim center to floor distance in mm.
-HOOP_HEIGHT_MM: float = 3050.0
 
-# Pairs of (top, bottom) landmarks used to fix absolute scale.
-SCALE_PAIRS: list[tuple[str, str]] = [
-    ("hoop_left_rim", "floor_under_hoop_left"),
-    ("hoop_right_rim", "floor_under_hoop_right"),
+@dataclass(frozen=True)
+class ScalePair:
+    """Two landmarks whose physical distance is fixed by the FIBA court spec."""
+    a: str
+    b: str
+    distance_mm: float
+
+
+# FIBA dimensions: court 28 m × 15 m, lane 5.8 m × 4.9 m, hoop 3.05 m above floor.
+# Each pair contributes one estimate of the metric scale; the final scale is
+# their mean, so misclicks on a single landmark only nudge the average.
+SCALE_PAIRS: list[ScalePair] = [
+    # Court sidelines (28 m)
+    ScalePair("corner_left_bench",  "corner_right_bench",  28000.0),
+    ScalePair("corner_left_stands", "corner_right_stands", 28000.0),
+    # Court endlines / center line (15 m)
+    ScalePair("corner_left_bench",  "corner_left_stands",  15000.0),
+    ScalePair("corner_right_bench", "corner_right_stands", 15000.0),
+    ScalePair("center_line_bench",  "center_line_stands",  15000.0),
+    # Free-throw lane length (5.8 m)
+    ScalePair("lane_left_endline_bench",   "lane_left_ft_bench",   5800.0),
+    ScalePair("lane_left_endline_stands",  "lane_left_ft_stands",  5800.0),
+    ScalePair("lane_right_endline_bench",  "lane_right_ft_bench",  5800.0),
+    ScalePair("lane_right_endline_stands", "lane_right_ft_stands", 5800.0),
+    # Free-throw lane width (4.9 m)
+    ScalePair("lane_left_endline_bench",  "lane_left_endline_stands",  4900.0),
+    ScalePair("lane_left_ft_bench",       "lane_left_ft_stands",       4900.0),
+    ScalePair("lane_right_endline_bench", "lane_right_endline_stands", 4900.0),
+    ScalePair("lane_right_ft_bench",      "lane_right_ft_stands",      4900.0),
+    # Hoop drop (3.05 m, vertical)
+    ScalePair("hoop_left_rim",  "floor_under_hoop_left",  3050.0),
+    ScalePair("hoop_right_rim", "floor_under_hoop_right", 3050.0),
 ]
 
 # Ordered dict mapping landmark -> (norm_x, norm_y) on the court-diagram PNG.

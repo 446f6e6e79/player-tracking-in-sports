@@ -2,21 +2,35 @@ import cv2
 import numpy as np
 
 from src.geometry.calibration_landmarks import (
-    HOOP_HEIGHT_MM,
     LANDMARKS,
     LandmarkClicks,
     SCALE_PAIRS,
+    ScalePair,
 )
 from src.geometry.triangulation import recover_relative_pose
 
 
 def common_labels(clicks_a: LandmarkClicks, clicks_b: LandmarkClicks) -> list[str]:
-    """Landmarks clicked in both views, in canonical LANDMARKS order."""
+    """
+    Return the list of landmark labels with non-None clicks in both cameras.
+    Parameters:
+        clicks_a: Clicks for camera A.
+        clicks_b: Clicks for camera B.
+    Returns:
+        List of landmark labels with non-None clicks in both cameras.
+    """
     return [lbl for lbl in LANDMARKS if clicks_a.get(lbl) is not None and clicks_b.get(lbl) is not None]
 
 
 def stack_clicks(clicks: LandmarkClicks, labels: list[str]) -> np.ndarray:
-    """(N, 2) float32 array of click coordinates for `labels`."""
+    """
+    Return an (N, 2) float32 array of click coordinates for `labels`.
+    Parameters:
+        clicks: Dictionary mapping landmark labels to click coordinates.
+        labels: List of landmark labels.
+    Returns:
+        (N, 2) float32 array of click coordinates.
+    """
     return np.array([clicks[l] for l in labels], dtype=np.float32)
 
 
@@ -60,25 +74,25 @@ def triangulate_landmark_pair(
 
 def recover_metric_scale(
     structure: dict[str, np.ndarray],
-    scale_pairs: list[tuple[str, str]] = SCALE_PAIRS,
-    target_mm: float = HOOP_HEIGHT_MM,
-) -> tuple[float, float] | None:
+    scale_pairs: list[ScalePair] = SCALE_PAIRS,
+) -> tuple[float, list[tuple[ScalePair, float, float]]] | None:
     """
-    Solve for the scalar that turns the arbitrary-scale anchor structure into
-    millimeters, using the mean of the available (top, bottom) physical pairs.
+    Solve for the scalar that maps the arbitrary-scale anchor structure into
+    millimeters by averaging the per-pair scale (target_mm / measured_units)
+    over every pair where both endpoints were triangulated.
 
-    Returns (scale, mean_distance_arbitrary_units) or None when no pair was
-    triangulated.
+    Returns (scale, details) where details is [(pair, measured_units, per_pair_scale)],
+    or None when no pair was triangulated.
     """
-    distances = [
-        float(np.linalg.norm(structure[top] - structure[bottom]))
-        for top, bottom in scale_pairs
-        if top in structure and bottom in structure
-    ]
-    if not distances:
+    details: list[tuple[ScalePair, float, float]] = []
+    for pair in scale_pairs:
+        if pair.a not in structure or pair.b not in structure:
+            continue
+        measured = float(np.linalg.norm(structure[pair.a] - structure[pair.b]))
+        details.append((pair, measured, pair.distance_mm / measured))
+    if not details:
         return None
-    mean_d = float(np.mean(distances))
-    return target_mm / mean_d, mean_d
+    return float(np.mean([s for _, _, s in details])), details
 
 
 def build_extrinsics(
