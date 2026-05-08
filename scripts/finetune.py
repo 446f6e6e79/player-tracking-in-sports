@@ -1,5 +1,5 @@
 """
-Fine-tune YOLOv11m on a Roboflow YOLO-format dataset.
+Fine-tune YOLOv26m on a Roboflow YOLO-format dataset.
 Designed to run on a Colab GPU.
 
 IMPORTANT: training images must be DISJOINT from the videos used at inference time 
@@ -9,7 +9,8 @@ COLAB USAGE:
 
     # from roboflow import Roboflow
     # rf = Roboflow(api_key="...")
-    # ds = rf.workspace("...").project("...").version(N).download("yolov11")
+    # ds = rf.workspace("...").project("...").version(N).download("yolov26")
+
     # # ds.location is then the directory containing data.yaml
 
     !python scripts/finetune.py \\
@@ -29,17 +30,17 @@ from ultralytics import YOLO
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Fine-tune YOLOv11m on a Roboflow YOLO-format dataset."
+        description="Fine-tune YOLOv26m on a Roboflow YOLO-format dataset."
     )
     p.add_argument("--data", required=True, help="Path to data.yaml from the Roboflow export")
-    p.add_argument("--model", default="yolo11m.pt", help="Starting weights")
+    p.add_argument("--model", default="yolo26m.pt", help="Starting weights")
     p.add_argument("--epochs", type=int, default=300, help="Number of training epochs")
     p.add_argument("--patience", type=int, default=30, help="Early stopping patience epochs with no fitness improvement")
     p.add_argument("--imgsz", type=int, default=1280, help="Train at high res so the ball is learnable")
     p.add_argument("--batch", type=int, default=4, help="Batch size")
     p.add_argument("--device", default=None, help="0 for first GPU, 'cpu' to force CPU; None=auto")
-    p.add_argument("--name", default="yolo11m_basketball", help="Run name under runs/detect/")
-    p.add_argument("--out", default="models/yolo11m_finetuned.pt", help="Where to copy best.pt")
+    p.add_argument("--name", default="yolo26m_basketball", help="Run name under runs/detect/")
+    p.add_argument("--out", default="models/yolo26m_finetuned.pt", help="Where to copy best.pt")
     return p.parse_args()
 
 
@@ -61,7 +62,7 @@ def main() -> None:
         val=True,
         
         # Augmentations tuned for small objects;
-        mosaic=1.0, mixup=0.1, hsv_v=0.4, degrees=5, translate=0.1, scale=0.5,
+        mosaic=0.7, mixup=0.02, hsv_v=0.25, degrees=3, translate=0.08, scale=0.4
     )
 
     # `train()` return shape can vary across ultralytics versions; try common save_dir locations.

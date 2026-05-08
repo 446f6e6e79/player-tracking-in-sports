@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 
+from src.types.serializable import JsonSerializable
+
 
 @dataclass
 class RectifiedPoint:
@@ -24,7 +26,7 @@ class FrameRectifiedPoints:
 
 
 @dataclass
-class RectifiedPointsOutput:
+class RectifiedPointsOutput(JsonSerializable):
     """Full rectified-points output for a video — mirrors TrackingOutput's top-level shape."""
     source: str
     camera_id: str
@@ -54,7 +56,7 @@ class FrameTriangulatedPoints:
 
 
 @dataclass
-class TriangulationOutput:
+class TriangulationOutput(JsonSerializable):
     """Full triangulated output across all cameras for one synchronised game act."""
     fps: float
     camera_ids: list[str]

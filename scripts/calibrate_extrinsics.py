@@ -3,7 +3,7 @@ Single-camera extrinsics calibration via solvePnP against the 3D court model.
 
 The user clicks court landmarks on the camera's first frame; each landmark has a
 known 3D world coordinate (FIBA dimensions, origin at the court center, +Z up —
-see `src/geometry/court_model.py`). solvePnP recovers the camera's rvec/tvec
+see `src/geometry/court.py`). solvePnP recovers the camera's rvec/tvec
 directly in the court frame — no anchor camera, no relative pose, no separate
 scale step.
 
@@ -21,7 +21,7 @@ import numpy as np
 
 from src.geometry.camera_data import CameraData
 from src.geometry.extrinsics_calibration import solve_camera_pose
-from src.utils.landmark_picker import collect_clicks
+from src.geometry.landmark_picker import collect_clicks
 from src.utils.video import get_frames, open_video
 
 

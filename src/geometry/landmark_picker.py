@@ -15,7 +15,8 @@ from typing import Literal
 import cv2
 import numpy as np
 
-from src.geometry.calibration_landmarks import LANDMARK_DIAGRAM_NORM, LANDMARKS, LandmarkClicks
+from src.geometry.calibration_landmarks import LANDMARK_DIAGRAM_NORM, LandmarkClicks
+from src.geometry.court import LANDMARKS
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DIAGRAM_PATH = _REPO_ROOT / "media" / "court-diagram.drawio.png"

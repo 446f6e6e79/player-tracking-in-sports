@@ -13,7 +13,7 @@ _TEAM_COLORS_BGR = {
 _FALLBACK_COLOR = (128, 128, 128)
 
 
-def _get_team_color_and_number(class_name: str) -> tuple[tuple[int, int, int], str]:
+def get_team_color_and_number(class_name: str) -> tuple[tuple[int, int, int], str]:
     """
         Map a fine-tuned class label (e.g. 'Red_11', 'Refree_2', 'Ball') to a
         (BGR color, jersey-number string).
@@ -38,7 +38,7 @@ def _get_team_color_and_number(class_name: str) -> tuple[tuple[int, int, int], s
     return _FALLBACK_COLOR, class_name
 
 
-def _text_color_for(bg_bgr: tuple[int, int, int]) -> tuple[int, int, int]:
+def text_color_for(bg_bgr: tuple[int, int, int]) -> tuple[int, int, int]:
     """Pick black or white text for legibility against a colored background."""
     b, g, r = bg_bgr
     # Use the ITU-R BT.601 formula to compute perceived luminance from the BGR color.
@@ -59,7 +59,7 @@ def _draw_caption(
     (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
     cv2.rectangle(frame, (x, y - th - 6), (x + tw + 4, y), bg_color, -1)
     cv2.putText(frame, text, (x + 2, y - 4),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, _text_color_for(bg_color), 1, cv2.LINE_AA)
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color_for(bg_color), 1, cv2.LINE_AA)
 
 
 def draw_detections(
@@ -106,7 +106,7 @@ def draw_tracked_detections(
     annotated = frame.copy()
     for detection in frame_detections.detections:
         x1, y1, x2, y2 = detection.get_int_bbox_tuple()
-        bbox_color, number = _get_team_color_and_number(detection.class_name)
+        bbox_color, number = get_team_color_and_number(detection.class_name)
 
         # Draw the bounding box in the team color
         cv2.rectangle(annotated, (x1, y1), (x2, y2), bbox_color, 2)

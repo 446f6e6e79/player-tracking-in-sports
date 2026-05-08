@@ -1,8 +1,8 @@
 import cv2
 import numpy as np
 
-from src.geometry.calibration_landmarks import LANDMARKS, LandmarkClicks
-from src.geometry.court_model import WORLD_LANDMARKS_MM
+from src.geometry.calibration_landmarks import LandmarkClicks
+from src.geometry.court import LANDMARKS, WORLD_LANDMARKS_MM
 from src.geometry.triangulation import compute_extrinsics
 
 

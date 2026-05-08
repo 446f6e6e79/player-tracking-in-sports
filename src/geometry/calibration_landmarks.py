@@ -1,6 +1,16 @@
-# Ordered dict mapping landmark -> (norm_x, norm_y) on the court-diagram PNG.
-# Iteration order is the click order; values are normalized [0, 1] coordinates
-# for the inset diagram (scaled to pixel coords at render time).
+"""
+UI metadata for the landmark click picker.
+
+The court 3D model and the canonical `LANDMARKS` ordering live in
+`src.geometry.court`; this module only adds the normalized inset-diagram
+positions and the click-mapping type alias used by the picker UI.
+"""
+from src.geometry.court import LANDMARKS
+
+
+# Normalized [0, 1] coordinates on the court-diagram PNG, used to render the
+# next-target highlight in the click picker. Values are arbitrary visual hints —
+# the **label** is what tells the user which physical point to click.
 LANDMARK_DIAGRAM_NORM: dict[str, tuple[float, float]] = {
     # Court corners (4)
     "corner_left_bench":   (0.020, 0.900),
@@ -51,7 +61,13 @@ LANDMARK_DIAGRAM_NORM: dict[str, tuple[float, float]] = {
     "backboard_right_bottom_stands": (0.925, 0.485),
 }
 
-LANDMARKS: tuple[str, ...] = tuple(LANDMARK_DIAGRAM_NORM)
+# Drift guard: every world landmark must have a diagram coord, and vice-versa.
+assert set(LANDMARK_DIAGRAM_NORM) == set(LANDMARKS), (
+    "LANDMARK_DIAGRAM_NORM keys must match LANDMARKS exactly. "
+    f"Missing: {set(LANDMARKS) - set(LANDMARK_DIAGRAM_NORM)}, "
+    f"extra: {set(LANDMARK_DIAGRAM_NORM) - set(LANDMARKS)}"
+)
+
 
 # A landmark -> clicked pixel mapping; None means the user skipped that landmark.
 LandmarkClicks = dict[str, tuple[float, float] | None]

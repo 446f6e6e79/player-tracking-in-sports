@@ -27,11 +27,11 @@ import cv2
 from ultralytics import YOLO
 
 from src.detection.nms import class_independent_nms
-from src.detection.yolo_detection import run_yolo_detection, yolo_to_detection_output
+from src.detection.yolo.detection import run_yolo_detection, yolo_to_detection_output
+from src.detection.yolo.model import load_fine_tuned_yolo_model
 from src.tracking.deep_sort import apply_deep_sort
 from src.tracking.label_resolution import resolve_track_labels
 from src.types.tracking import merge_detections
-from src.utils.model_loading import load_fine_tuned_yolo_model
 from src.utils.video import get_frames, open_video, produce_tracking_output_video
 
 
