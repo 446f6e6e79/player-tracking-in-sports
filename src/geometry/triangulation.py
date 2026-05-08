@@ -36,56 +36,6 @@ def compute_extrinsics(
     return rvec.astype(np.float32), tvec.astype(np.float32)
 
 
-def recover_relative_pose(
-    pts_a: np.ndarray,
-    pts_b: np.ndarray,
-    mtx_a: np.ndarray,
-    dist_a: np.ndarray,
-    mtx_b: np.ndarray,
-    dist_b: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Recover camera B's pose relative to A from cross-view correspondences.
-
-    Both point sets are first undistorted to normalized image rays, so cameras
-    with different intrinsics and distortion are handled correctly. The returned
-    pose has a unit translation (‖t‖ = 1) — multi-view calibration callers must
-    set the absolute scale separately.
-
-    Parameters:
-        - pts_a (np.ndarray): (N, 2) raw distorted pixel coordinates in camera A.
-        - pts_b (np.ndarray): (N, 2) same physical points in camera B.
-        - mtx_a, dist_a: intrinsics and distortion of camera A.
-        - mtx_b, dist_b: intrinsics and distortion of camera B.
-    Returns:
-        - R (np.ndarray): (3, 3) rotation, camera B in camera A's frame.
-        - t (np.ndarray): (3, 1) translation, ‖t‖ = 1.
-        - inlier_mask (np.ndarray): (N,) uint8, 1 for inliers used by recoverPose.
-        - pts_a_norm (np.ndarray): (N, 2) normalized rays for camera A.
-        - pts_b_norm (np.ndarray): (N, 2) normalized rays for camera B.
-    """
-    pa = np.asarray(pts_a, dtype=np.float32).reshape(-1, 1, 2)
-    pb = np.asarray(pts_b, dtype=np.float32).reshape(-1, 1, 2)
-    pa_norm = cv2.undistortPoints(pa, mtx_a, dist_a).reshape(-1, 2)
-    pb_norm = cv2.undistortPoints(pb, mtx_b, dist_b).reshape(-1, 2)
-
-    K_id = np.eye(3, dtype=np.float64)
-    E, mask = cv2.findEssentialMat(
-        pa_norm, pb_norm, K_id,
-        method=cv2.RANSAC, prob=0.999, threshold=1e-3,
-    )
-    if E is None:
-        raise RuntimeError("findEssentialMat failed — too few inliers or degenerate configuration")
-    _, R, t, pose_mask = cv2.recoverPose(E, pa_norm, pb_norm, K_id, mask=mask)
-    return (
-        R.astype(np.float32),
-        t.astype(np.float32).reshape(3, 1),
-        pose_mask.reshape(-1),
-        pa_norm.astype(np.float32),
-        pb_norm.astype(np.float32),
-    )
-
-
 def build_projection_matrix(
     mtx: np.ndarray,
     rvec: np.ndarray,
