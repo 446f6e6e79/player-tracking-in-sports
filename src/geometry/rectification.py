@@ -1,31 +1,9 @@
-import json
-import os
-
 import cv2
 import numpy as np
 
+from src.geometry.load_camera_data import get_distortion, get_intrinsics, load_camera_data
 from src.types.geometry import FrameRectifiedPoints, RectifiedPoint, RectifiedPointsOutput
 from src.types.tracking import TrackingOutput
-
-
-def load_calibration(calib_path: str) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Load the camera intrinsics and distortion coefficients from a JSON file.
-    Parameters:
-        - calib_path (str): Path to a calibration JSON file containing "mtx" and "dist" entries.
-    Returns:
-        - mtx (np.ndarray): 3x3 camera matrix as float32.
-        - dist (np.ndarray): Distortion coefficients as float32.
-    """
-    if not os.path.exists(calib_path):
-        raise FileNotFoundError(f"Calibration file not found: {calib_path}")
-
-    with open(calib_path, "r") as f:
-        calib = json.load(f)
-
-    mtx = np.array(calib["mtx"], dtype=np.float32)
-    dist = np.array(calib["dist"], dtype=np.float32)
-    return mtx, dist
 
 
 def rectify_points(points: np.ndarray, mtx: np.ndarray, dist: np.ndarray) -> np.ndarray:
@@ -49,17 +27,19 @@ def rectify_points(points: np.ndarray, mtx: np.ndarray, dist: np.ndarray) -> np.
     return rectified.reshape(-1, 2)
 
 
-def rectify_tracking_output(tracking: TrackingOutput, calib_path: str) -> RectifiedPointsOutput:
+def rectify_tracking_output(tracking: TrackingOutput, camera_id: str) -> RectifiedPointsOutput:
     """
     Rectify the bounding box centers from a TrackingOutput using camera calibration.
     Parameters:
         - tracking (TrackingOutput): The input tracking output containing frames and detections.
-        - calib_path (str): Path to the calibration JSON file.
+        - camera_id (str): Camera identifier, e.g. "cam_13", used to resolve the calibration JSON.
     Returns:
         - RectifiedPointsOutput: A new output containing rectified points for each detection.
     """
     # Load camera calibration parameters
-    mtx, dist = load_calibration(calib_path)
+    data = load_camera_data(camera_id)
+    mtx = get_intrinsics(data)
+    dist = get_distortion(data)
 
     # Collect all bounding box centers across all frames
     centers: list[tuple[float, float]] = []
