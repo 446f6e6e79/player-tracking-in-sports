@@ -1,32 +1,24 @@
 """
-Multi-view calibration of camera extrinsics from cross-camera correspondences.
-The user clicks the same set of physical landmarks in each camera (no world
-coordinates required). 
+Two-camera calibration of camera extrinsics from cross-camera correspondences.
+The user clicks the same set of physical landmarks in both cameras (no world
+knowledge required, just "click the same thing in each view").
 
-The pipeline:
-  1. Anchor camera (first item of --cameras, default cam_13): R = I, t = 0.
-  2. Pair (anchor <-> camera B): essential matrix + recoverPose -> relative pose
-     of B (||t||=1). Triangulate the clicked landmarks in the anchor's frame.
-  3. Camera C: solvePnP against the triangulated 3D structure -> pose of C in
-     the anchor's frame, sharing scale with B automatically.
-  4. Set absolute scale by demanding |rim_center - floor_under_rim| = 3050 mm.
-  5. Show per-camera reprojection diagnostics, then a single y/N prompt before
-     atomically writing all three JSONs via save_extrinsics.
-    Corners:       corner_left_bench / corner_left_stands / corner_right_bench / corner_right_stands
-    Center:        center_court / center_line_bench / center_line_stands
-    Lane (area):   lane_{left,right}_{endline,ft}_{bench,stands}   (8 corners)
-    Hoops:         hoop_left_rim / hoop_right_rim
-    Floor anchors: floor_under_hoop_left / floor_under_hoop_right
-    3-point arc:   three_pt_{left,right}_apex
-    FT circle:     ft_circle_{left,right}_apex
-
-The two (rim, floor_under_rim) pairs double as the metric scale anchors.
+Pipeline:
+    1. The anchor camera (default cam_13) defines the world frame: R=I, T=0.
+    2. User clicks the LANDMARKS list in both anchor and the other camera.
+    3. Essential matrix + recoverPose -> relative pose of the second camera
+       (||t||=1). Triangulate the clicked landmarks in the anchor's frame.
+    4. Set absolute scale by demanding |rim_center - floor_under_rim| = 3050 mm.
+    5. Per-camera reprojection diagnostics, then a single y/N prompt before
+       atomically writing both JSONs via save_extrinsics.
 
 Usage:
-    python scripts/calibrate_extrinsics.py
-    python scripts/calibrate_extrinsics.py --cameras cam_13 cam_2 cam_4
+    python scripts/calibrate_extrinsics.py                       # cam_13 + cam_4
+    python scripts/calibrate_extrinsics.py --camera cam_2        # cam_13 + cam_2
+    python scripts/calibrate_extrinsics.py --anchor cam_4 --camera cam_2
 """
 import argparse
+import functools
 from pathlib import Path
 import sys
 import time
@@ -43,29 +35,24 @@ from src.geometry.load_camera_data import (
     load_camera_data,
     save_extrinsics,
 )
-from src.geometry.triangulation import compute_extrinsics, recover_relative_pose
+from src.geometry.triangulation import recover_relative_pose
 from src.utils.video import get_frames, open_video
 
-
+# Metric scale target: rim center to floor distance in mm.
 HOOP_HEIGHT_MM = 3050.0
 
+# Pairs of landmarks to use for absolute scale estimation
 SCALE_PAIRS: list[tuple[str, str]] = [
     ("hoop_left_rim", "floor_under_hoop_left"),
     ("hoop_right_rim", "floor_under_hoop_right"),
 ]
 
-COURT_DIAGRAM_PATH   = REPO_ROOT / "media" / "court-diagram.drawio.png"
-DIAGRAM_INSET_WIDTH  = 320  # px — inset width on the camera frame; height follows aspect
-DIAGRAM_INSET_MARGIN = 12   # px — gap from camera-frame edges
-STATUS_BAR_HEIGHT    = 50   # px — translucent strip at the top of the camera frame
-DIAGRAM_DOT_RADIUS   = 4    # px — current-landmark highlight on the inset
+STATUS_BAR_HEIGHT    = 50   # px — header strip stacked above the camera frame; the click callback subtracts it to translate window→camera coords, so this must stay shared with the renderer.
 CLICK_DEBOUNCE_S     = 0.25 # s — drop EVENT_LBUTTONDOWN events arriving faster than this (macOS Cocoa fires duplicates)
 
-# Single source of truth: ordered dict mapping landmark label -> (x_frac, y_frac)
-# on the court-diagram PNG. Diagram convention:
-#   y small => stands (top of image), y large => bench (bottom).
-#   x small => left basket, x large => right basket.
-# Iteration order is the click order; LANDMARKS below is a derived view.
+# Ordered dict mapping landmark -> (norm_x, norm_y) on the court-diagram PNG. 
+# Iteration order is the click order;
+# values are normalized [0, 1] coordinates for the inset diagram (scaled later to pixel coords).
 LANDMARK_DIAGRAM_NORM: dict[str, tuple[float, float]] = {
     # Court corners (4)
     "corner_left_bench":   (0.020, 0.900),
@@ -103,14 +90,15 @@ LANDMARK_DIAGRAM_NORM: dict[str, tuple[float, float]] = {
     "three_pt_right_apex":           (0.700, 0.510),
     "three_pt_right_endline_stands": (0.980, 0.220), 
 }
-
 LANDMARKS: tuple[str, ...] = tuple(LANDMARK_DIAGRAM_NORM)
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Multi-view extrinsics calibration via cross-camera correspondences.")
-    p.add_argument("--cameras", nargs="+", default=["cam_13", "cam_2", "cam_4"],
-                   help="Cameras to calibrate. The first is the world-frame anchor (R=I, t=0).")
+    p = argparse.ArgumentParser(description="Two-camera extrinsics calibration via cross-camera correspondences.")
+    p.add_argument("--anchor", default="cam_13",
+                   help="Camera defining the world frame (R=I, t=0). Default: cam_13.")
+    p.add_argument("--camera", default="cam_4",
+                   help="The other camera to calibrate against the anchor. Default: cam_4.")
     p.add_argument("--input-dir", default="data/videos",
                    help="Directory containing the source videos (outN.mp4).")
     p.add_argument("--display-max-dim", type=int, default=1280,
@@ -118,15 +106,12 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def video_path_for(camera_id: str, input_dir: Path) -> Path:
-    num = camera_id.split("_", 1)[1]
-    return input_dir / f"out{num}.mp4"
-
-
 def _load_first_frame(camera_id: str, input_dir: Path) -> np.ndarray:
-    path = video_path_for(camera_id, input_dir)
-    if not path.exists():
-        raise FileNotFoundError(f"Video not found: {path}")
+    """Load the first frame of the given camera's video."""
+    filename = camera_id.replace("cam_", "out") + ".mp4"
+    path = input_dir / filename
+    
+    # Open the video and read the first frame
     cap = open_video(str(path))
     try:
         frames, _ = get_frames(cap, max_frames=1)
@@ -136,43 +121,83 @@ def _load_first_frame(camera_id: str, input_dir: Path) -> np.ndarray:
         raise RuntimeError(f"Could not read any frame from {path}")
     return frames[0]
 
-
-def _load_diagram_inset() -> np.ndarray:
+# The LRU cache allows us to load and resize the diagram inset once
+@functools.lru_cache(maxsize=1)
+def _load_diagram_inset(
+    diagram_inset_width: int = 320,
+    path: Path = REPO_ROOT / "media" / "court-diagram.drawio.png",
+) -> np.ndarray:
     """
-    Load the transparent court-diagram PNG and resize to DIAGRAM_INSET_WIDTH while
-    preserving aspect ratio. Returns the BGRA image (alpha kept for blending).
+    Load the transparent court-diagram PNG and resize to `diagram_inset_width`
+    while preserving aspect ratio.
     """
-    if not COURT_DIAGRAM_PATH.exists():
-        raise FileNotFoundError(f"Court diagram image not found: {COURT_DIAGRAM_PATH}")
-    diagram = cv2.imread(str(COURT_DIAGRAM_PATH), cv2.IMREAD_UNCHANGED)
+    if not path.exists():
+        raise FileNotFoundError(f"Court diagram image not found: {path}")
+    # Read the diagram preserving alpha (transparency) channel.
+    diagram = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
     if diagram is None:
-        raise RuntimeError(f"OpenCV failed to decode {COURT_DIAGRAM_PATH}")
+        raise RuntimeError(f"OpenCV failed to decode {path}")
     if diagram.ndim != 3 or diagram.shape[2] != 4:
         raise RuntimeError(f"Expected an RGBA PNG, got shape {diagram.shape}")
+    
+    # Resize the diagram to fit the desired width while preserving aspect ratio.
     h0, w0 = diagram.shape[:2]
-    scale = DIAGRAM_INSET_WIDTH / w0
-    new_w = DIAGRAM_INSET_WIDTH
+    scale = diagram_inset_width / w0
+    new_w = diagram_inset_width
     new_h = max(1, int(round(h0 * scale)))
     return cv2.resize(diagram, (new_w, new_h))
 
 
-def _paste_inset(canvas: np.ndarray, inset_bgra: np.ndarray, top_left: tuple[int, int]) -> None:
-    """Alpha-blend `inset_bgra` (BGRA) onto BGR `canvas` in place at top_left."""
-    x0, y0 = top_left
-    h, w = inset_bgra.shape[:2]
-    roi = canvas[y0:y0 + h, x0:x0 + w].astype(np.float32)
-    alpha = inset_bgra[..., 3:4].astype(np.float32) / 255.0
-    rgb = inset_bgra[..., :3].astype(np.float32)
-    canvas[y0:y0 + h, x0:x0 + w] = (alpha * rgb + (1.0 - alpha) * roi).astype(np.uint8)
+def _insert_field_diagram(
+    base_canvas: np.ndarray, 
+    field_diagram: np.ndarray, 
+    top_left_position: tuple[int, int],
+    margin: int = 20,
+) -> None:
+    
+    x0, y0 = top_left_position
+    h, w = field_diagram.shape[:2]
+    roi = base_canvas[y0:y0 + h, x0:x0 + w].astype(np.float32)
+
+    alpha = field_diagram[..., 3:4].astype(np.float32) / 255.0
+    rgb = field_diagram[..., :3].astype(np.float32)
+
+    base_canvas[y0:y0 + h, x0:x0 + w] = (alpha * rgb + (1.0 - alpha) * roi).astype(np.uint8)
 
 
-def _diagram_pixel(label: str, inset_w: int, inset_h: int) -> tuple[int, int] | None:
-    """Map a landmark label to pixel coords inside the inset image."""
+def _diagram_pixel(
+    label: str, 
+    inset_w: int, 
+    inset_h: int
+) -> tuple[int, int] | None:
+    """Given a landmark label, return the scaled pixel coordinates for that landmark in the diagram inset, or None if the label is unknown."""
+    # Get the normalized (fx, fy) coordinates from the LANDMARK_DIAGRAM_NORM dict
     norm = LANDMARK_DIAGRAM_NORM.get(label)
     if norm is None:
         return None
-    fx, fy = norm
-    return (int(round(fx * inset_w)), int(round(fy * inset_h)))
+    # Scale the normalized coordinates to the actual pixel dimensions of the inset
+    norm_x, norm_y = norm
+    return (int(round(norm_x * inset_w)), int(round(norm_y * inset_h)))
+
+
+def _draw_diagram_dot(
+    inset: np.ndarray,
+    label: str,
+    color: tuple[int, int, int, int],
+    radius: int=4,
+    ordinal: int | None = None,
+) -> None:
+    """Place a colored dot on the diagram inset for `label`. If `ordinal` is given,
+    annotate it as `#{ordinal}` in the same color."""
+    ih, iw = inset.shape[:2]
+    target = _diagram_pixel(label, iw, ih)
+    if target is None:
+        return
+    cv2.circle(inset, target, radius, color, thickness=-1)
+    if ordinal is not None:
+        cv2.putText(inset, f"#{ordinal}",
+                    (target[0] + radius + 2, target[1] - 2),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, color, 1, cv2.LINE_AA)
 
 
 def _render_overlay(
@@ -181,35 +206,43 @@ def _render_overlay(
     clicks: dict[str, tuple[float, float] | None],
     next_index: int,
     scale: float,
-    inset_bgra: np.ndarray,
-    inset_top_left: tuple[int, int],
-    reprojected: dict[str, tuple[float, float]] | None = None,
+    diagram_inset_margin: int = 20,
 ) -> np.ndarray:
     """
-    Compose the picker view: camera frame as the canvas, with already-clicked
-    points drawn as green dots, a translucent status bar across the top, and the
-    transparent court-diagram alpha-blended in the top-right corner with the
-    current landmark highlighted.
+    Compose the picker view: camera frame as the canvas with clicked points,
+    plus the diagram inset acting as a progress map (green=clicked with
+    ordinal, red=skipped, blue=current target).
     """
+    # Start with the resized camera frame and a fresh diagram inset.
+    # _load_diagram_inset is cached; copy so the per-frame dots don't accumulate
+    # into the cached source image.
     cam = camera_frame_resized.copy()
+    diagram_inset = _load_diagram_inset().copy()
+    ih, iw = diagram_inset.shape[:2]
+    inset_top_left = (
+        max(0, cam.shape[1] - iw - diagram_inset_margin),
+        STATUS_BAR_HEIGHT + diagram_inset_margin,
+    )
 
-    # Picked-point overlays.
+    # Single pass: per landmark, draw to the camera frame and/or the diagram
+    # depending on whether it's clicked, skipped, current, or not yet reached.
     for i, label in enumerate(LANDMARKS):
         click = clicks.get(label)
-        if click is None:
-            continue
-        ix, iy = click
-        dx, dy = int(round(ix * scale)), int(round(iy * scale))
-        cv2.circle(cam, (dx, dy), 4, (0, 255, 0), thickness=-1)
-        cv2.putText(cam, f"#{i + 1} {label}", (dx + 6, dy - 6),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1, cv2.LINE_AA)
-
-    # Reprojection markers.
-    if reprojected is not None:
-        for _label, (rx, ry) in reprojected.items():
-            dx, dy = int(round(rx * scale)), int(round(ry * scale))
-            cv2.drawMarker(cam, (dx, dy), (0, 0, 255), markerType=cv2.MARKER_CROSS,
-                           markerSize=12, thickness=1)
+        # If already clicked, draw a green dot on the camera frame + diagram, with ordinal.
+        if click is not None:
+            ix, iy = click
+            dx, dy = int(round(ix * scale)), int(round(iy * scale))
+            cv2.circle(cam, (dx, dy), 4, (0, 255, 0), thickness=-1)
+            cv2.putText(cam, f"#{i + 1}", (dx + 6, dy - 6),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1, cv2.LINE_AA)
+            _draw_diagram_dot(diagram_inset, label, (0, 255, 0, 255), ordinal=i + 1)
+        
+        # If it is the next target to click, draw a blue dot on the diagram.
+        elif i == next_index:
+            _draw_diagram_dot(diagram_inset, label, (255, 0, 0, 255))
+        # If it is skipped (user pressed 'n'), draw a red dot on the diagram.
+        elif i < next_index:
+            _draw_diagram_dot(diagram_inset, label, (0, 0, 255, 255))
 
     # Status bar contents — drawn on a separate strip above the camera frame.
     if next_index < len(LANDMARKS):
@@ -218,16 +251,9 @@ def _render_overlay(
     else:
         current_label = None
         msg = f"{camera_id}  all landmarks recorded — Enter to continue"
-    keys = "keys: u=undo  n=not visible  s=skip camera  q=quit"
+    keys = "keys: u=undo  n=not visible  q=quit"
 
-    # Diagram inset with current-landmark highlight.
-    inset = inset_bgra.copy()
-    if current_label is not None:
-        ih, iw = inset.shape[:2]
-        target = _diagram_pixel(current_label, iw, ih)
-        if target is not None:
-            cv2.circle(inset, target, DIAGRAM_DOT_RADIUS, (0, 0, 255, 255), thickness=-1)
-    _paste_inset(cam, inset, inset_top_left)
+    _insert_field_diagram(cam, diagram_inset, inset_top_left)
 
     # Header strip stacked on top of the camera frame so it never obscures clicks.
     header = np.zeros((STATUS_BAR_HEIGHT, cam.shape[1], 3), dtype=cam.dtype)
@@ -250,13 +276,6 @@ def collect_clicks(
     scale = display_max_dim / max(h, w) if max(h, w) > display_max_dim else 1.0
     display_size = (int(round(w * scale)), int(round(h * scale)))
     base_display = cv2.resize(frame, display_size) if scale != 1.0 else frame.copy()
-    cam_w, cam_h = base_display.shape[1], base_display.shape[0]
-
-    inset = _load_diagram_inset()
-    inset_h, inset_w = inset.shape[:2]
-    inset_x0 = max(0, cam_w - inset_w - DIAGRAM_INSET_MARGIN)
-    inset_y0 = STATUS_BAR_HEIGHT + DIAGRAM_INSET_MARGIN
-    inset_top_left = (inset_x0, inset_y0)
 
     clicks: dict[str, tuple[float, float] | None] = {label: None for label in LANDMARKS}
     order: list[str] = []  # labels in click order, for undo
@@ -285,14 +304,11 @@ def collect_clicks(
 
     try:
         while True:
-            overlay = _render_overlay(base_display, camera_id, clicks, state["index"], scale,
-                                      inset, inset_top_left)
+            overlay = _render_overlay(base_display, camera_id, clicks, state["index"], scale)
             cv2.imshow(window, overlay)
             key = cv2.waitKey(20) & 0xFF
             if key == ord("q"):
                 return clicks, "quit"
-            if key == ord("s"):
-                return clicks, "skipped"
             if key == ord("n") and state["index"] < len(LANDMARKS):
                 label = LANDMARKS[state["index"]]
                 clicks[label] = None
@@ -308,41 +324,6 @@ def collect_clicks(
         cv2.destroyWindow(window)
 
 
-def show_reprojection(
-    camera_id: str,
-    frame: np.ndarray,
-    clicks: dict[str, tuple[float, float] | None],
-    reprojected: dict[str, tuple[float, float]],
-    display_max_dim: int,
-) -> None:
-    h, w = frame.shape[:2]
-    scale = display_max_dim / max(h, w) if max(h, w) > display_max_dim else 1.0
-    display_size = (int(round(w * scale)), int(round(h * scale)))
-    base_display = cv2.resize(frame, display_size) if scale != 1.0 else frame.copy()
-    cam_w = base_display.shape[1]
-    inset = _load_diagram_inset()
-    inset_h, inset_w = inset.shape[:2]
-    inset_top_left = (max(0, cam_w - inset_w - DIAGRAM_INSET_MARGIN),
-                      STATUS_BAR_HEIGHT + DIAGRAM_INSET_MARGIN)
-    overlay = _render_overlay(base_display, f"{camera_id} (reprojection)",
-                              clicks, len(LANDMARKS), scale,
-                              inset, inset_top_left,
-                              reprojected=reprojected)
-    cv2.putText(overlay, "Enter to continue",
-                (10, overlay.shape[0] - 12),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
-    window = f"reproj_{camera_id}"
-    cv2.namedWindow(window, cv2.WINDOW_AUTOSIZE)
-    try:
-        cv2.imshow(window, overlay)
-        while True:
-            k = cv2.waitKey(20) & 0xFF
-            if k in (13, 10, ord("q")):
-                break
-    finally:
-        cv2.destroyWindow(window)
-
-
 def _common_labels(clicks_a: dict[str, tuple[float, float] | None],
                    clicks_b: dict[str, tuple[float, float] | None]) -> list[str]:
     return [lbl for lbl in LANDMARKS if clicks_a.get(lbl) is not None and clicks_b.get(lbl) is not None]
@@ -351,39 +332,39 @@ def _common_labels(clicks_a: dict[str, tuple[float, float] | None],
 def _stack(clicks: dict[str, tuple[float, float] | None], labels: list[str]) -> np.ndarray:
     return np.array([clicks[l] for l in labels], dtype=np.float32)
 
-
 def main() -> None:
+    # Parse and validate command-line args
     args = parse_args()
-    if len(args.cameras) != 3:
-        print(f"--cameras must list exactly three camera ids (got {len(args.cameras)}). "
-              "The chain pipeline assumes anchor + 2 others.")
+    if args.anchor == args.camera:
+        print(f"--anchor and --camera must be different (both are {args.anchor}).")
         return
-
-    anchor, cam_b, cam_c = args.cameras
+    
+    anchor, cam_b = args.anchor, args.camera
+    cameras = [anchor, cam_b]
     input_dir = Path(args.input_dir)
 
-    # Load camera data and first frames for all three.
+    # Load camera data and first frames for both.
     cams: dict[str, dict] = {}
-    for cid in args.cameras:
-        data = load_camera_data(cid)
-        cams[cid] = {
+    for c_id in cameras:
+        data = load_camera_data(c_id)
+        cams[c_id] = {
             "mtx": get_intrinsics(data),
             "dist": get_distortion(data),
-            "frame": _load_first_frame(cid, input_dir),
+            "frame": _load_first_frame(c_id, input_dir),
         }
 
-    # Phase 1: collect clicks per camera.
+    # Collect clicks for both cameras
     all_clicks: dict[str, dict[str, tuple[float, float] | None]] = {}
-    for cid in args.cameras:
-        print(f"\n=== Click landmarks in {cid} ===")
-        clicks, status = collect_clicks(cid, cams[cid]["frame"], args.display_max_dim)
+    for c_id in cameras:
+        print(f"\n=== Click landmarks in {c_id} ===")
+        clicks, status = collect_clicks(c_id, cams[c_id]["frame"], args.display_max_dim)
         if status == "quit":
             print("Quit requested. No JSONs written.")
             return
         if status == "skipped":
-            print(f"Skipped {cid}. Cannot proceed without all three cameras.")
+            print(f"Skipped {c_id}. Cannot proceed without both cameras.")
             return
-        all_clicks[cid] = clicks
+        all_clicks[c_id] = clicks
 
     # Phase 2: pair (anchor <-> cam_b) -> relative pose + triangulated structure.
     pair_labels = _common_labels(all_clicks[anchor], all_clicks[cam_b])
@@ -414,18 +395,7 @@ def main() -> None:
         label: X[i] for i, label in enumerate(pair_labels) if inlier_mask[i]
     }
 
-    # Phase 3: PnP cam_c against the triangulated structure.
-    pnp_labels = [l for l in LANDMARKS if l in structure and all_clicks[cam_c].get(l) is not None]
-    if len(pnp_labels) < 4:
-        print(f"Need >=4 triangulated landmarks visible in {cam_c}, got {len(pnp_labels)}.")
-        return
-
-    world_pts = np.array([structure[l] for l in pnp_labels], dtype=np.float32)
-    image_pts = _stack(all_clicks[cam_c], pnp_labels)
-    rvec_c, tvec_c = compute_extrinsics(world_pts, image_pts, cams[cam_c]["mtx"], cams[cam_c]["dist"])
-    print(f"{anchor} <- {cam_c}: PnP solved using {len(pnp_labels)} landmarks")
-
-    # Phase 4: anchor metric scale from (rim, floor_under_rim) pairs.
+    # Phase 3: anchor metric scale from (rim, floor_under_rim) pairs.
     distances = []
     for top, bottom in SCALE_PAIRS:
         if top in structure and bottom in structure:
@@ -438,9 +408,8 @@ def main() -> None:
     print(f"Scale anchor: mean rim-to-floor distance {mean_d:.4f} (arbitrary units) "
           f"-> scale = {scale:.4f}  (target {HOOP_HEIGHT_MM} mm)")
 
-    # Apply scale to translations and structure.
+    # Apply scale to translation and structure.
     tvec_b_scaled = (t_b * scale).astype(np.float32)
-    tvec_c_scaled = (tvec_c.reshape(3, 1) * scale).astype(np.float32)
     structure_scaled = {l: (p * scale).astype(np.float32) for l, p in structure.items()}
 
     # Final extrinsics for each camera (in anchor's world frame).
@@ -448,18 +417,16 @@ def main() -> None:
     tvec_anchor = np.zeros((3, 1), dtype=np.float32)
     rvec_b, _ = cv2.Rodrigues(R_b)
     rvec_b = rvec_b.astype(np.float32)
-    rvec_c = rvec_c.astype(np.float32).reshape(3, 1)
 
     extrinsics: dict[str, tuple[np.ndarray, np.ndarray]] = {
         anchor: (rvec_anchor, tvec_anchor),
         cam_b: (rvec_b, tvec_b_scaled),
-        cam_c: (rvec_c, tvec_c_scaled),
     }
 
-    # Phase 5: per-camera reprojection diagnostics.
+    # Phase 4: per-camera reprojection diagnostics.
     print("\n=== Reprojection residuals (px) ===")
     reproj_per_camera: dict[str, dict[str, tuple[float, float]]] = {}
-    for cid in args.cameras:
+    for cid in cameras:
         rvec, tvec = extrinsics[cid]
         labels = [l for l in LANDMARKS if l in structure_scaled and all_clicks[cid].get(l) is not None]
         if not labels:
@@ -475,14 +442,8 @@ def main() -> None:
             print(f"    {label:<24s} residual={residuals[i]:.2f}")
         reproj_per_camera[cid] = {label: (float(proj[i, 0]), float(proj[i, 1])) for i, label in enumerate(labels)}
 
-    # Show overlays so the user can visually verify.
-    for cid in args.cameras:
-        if cid in reproj_per_camera:
-            show_reprojection(cid, cams[cid]["frame"], all_clicks[cid],
-                              reproj_per_camera[cid], args.display_max_dim)
-
-    # Phase 6: atomic save.
-    answer = input("\nWrite extrinsics for all three cameras? [y/N]: ").strip().lower()
+    # Phase 5: atomic save.
+    answer = input("\nWrite extrinsics for both cameras? [y/N]: ").strip().lower()
     if answer != "y":
         print("Discarded. No JSONs modified.")
         return
