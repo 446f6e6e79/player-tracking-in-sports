@@ -58,3 +58,30 @@ def get_extrinsics(data: dict) -> tuple[np.ndarray, np.ndarray]:
     rvecs = np.array(data["rvecs"], dtype=np.float32)
     tvecs = np.array(data["tvecs"], dtype=np.float32)
     return rvecs, tvecs
+
+
+def save_extrinsics(
+    camera_id: str,
+    rvec: np.ndarray,
+    tvec: np.ndarray,
+    base_dir: Path | str | None = None,
+) -> None:
+    """
+    Overwrite the rvecs/tvecs entries in the camera JSON, preserving mtx and dist.
+    Parameters:
+        - camera_id (str): Camera identifier, e.g. "cam_13".
+        - rvec (np.ndarray): Rotation vector (Rodrigues form), shape (3,) or (3, 1).
+        - tvec (np.ndarray): Translation vector, shape (3,) or (3, 1).
+        - base_dir (Path | str | None): Optional override for the directory containing
+          the calibration JSON files. Defaults to <repo_root>/data/camera_data.
+    """
+    base = Path(base_dir) if base_dir is not None else DEFAULT_CAMERA_DATA_DIR
+    path = base / f"{camera_id}.json"
+    if not path.exists():
+        raise FileNotFoundError(f"Camera data file not found: {path}")
+    with open(path, "r") as f:
+        data = json.load(f)
+    data["rvecs"] = np.asarray(rvec, dtype=float).reshape(3, 1).tolist()
+    data["tvecs"] = np.asarray(tvec, dtype=float).reshape(3, 1).tolist()
+    with open(path, "w") as f:
+        json.dump(data, f)

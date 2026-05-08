@@ -30,3 +30,32 @@ class RectifiedPointsOutput:
     camera_id: str
     fps: float
     frames: list[FrameRectifiedPoints] = field(default_factory=list)
+
+
+@dataclass
+class Point3D:
+    """A single 3D point in world coordinates (mm), tagged with its class identity."""
+    x: float
+    y: float
+    z: float
+    class_id: int
+    class_name: str
+
+
+@dataclass
+class FrameTriangulatedPoints:
+    """3D points reconstructed for a single (synchronised) video frame."""
+    frame_index: int
+    points: list[Point3D] = field(default_factory=list)
+
+    @property
+    def num_points(self) -> int:
+        return len(self.points)
+
+
+@dataclass
+class TriangulationOutput:
+    """Full triangulated output across all cameras for one synchronised game act."""
+    fps: float
+    camera_ids: list[str]
+    frames: list[FrameTriangulatedPoints] = field(default_factory=list)
