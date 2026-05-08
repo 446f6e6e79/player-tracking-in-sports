@@ -8,7 +8,6 @@ directly in the court frame — no anchor camera, no relative pose, no separate
 scale step.
 
 Usage:
-    python scripts/calibrate_extrinsics.py                    # cam_4
     python scripts/calibrate_extrinsics.py --camera cam_13
 """
 import argparse
@@ -28,7 +27,7 @@ from src.utils.video import get_frames, open_video
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Single-camera extrinsics calibration via solvePnP.")
-    p.add_argument("--camera", default="cam_4",
+    p.add_argument("--camera", required=True, 
                    help="Camera id to calibrate (e.g. cam_2, cam_4, cam_13).")
     p.add_argument("--input-dir", default="data/videos",
                    help="Directory containing the source videos (outN.mp4).")

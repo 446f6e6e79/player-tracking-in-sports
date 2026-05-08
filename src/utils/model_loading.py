@@ -16,14 +16,14 @@ def load_fine_tuned_yolo_model(model_path: str | Path | None = None) -> YOLO:
     Parameters:
         - model_path (str | Path): expected local path to the weights file
     """
-    model_path = ensure_default_model(model_path)
+    model_path = _ensure_default_model(model_path)
     print(f"Model ready at {model_path}. Loading into memory...")
     return YOLO(model_path)
 
-def download_model_from_huggingface(
+def _download_model_from_huggingface(
+    local_dir: str | Path,
     repo_id: str = HF_REPO_ID,
     filename: str = DEFAULT_FILENAME,
-    local_dir: str | Path = DEFAULT_LOCAL_DIR,
 ) -> Path:
     """
     Download a single weight file from a Hugging Face model repo.
@@ -48,24 +48,24 @@ def download_model_from_huggingface(
     return Path(local_path)
 
 
-def ensure_default_model(model_path: str | Path | None = None) -> Path:
+def _ensure_default_model(
+    model_path: str | Path = DEFAULT_LOCAL_DIR / DEFAULT_FILENAME
+) -> Path:
     """
     Return `model_path` if it already exists on disk; otherwise download the
     default best.pt from the Hugging Face repo into the same directory.
     Parameters:
-        - model_path (str | Path | None): expected local path to the weights file
+        - model_path (str | Path): expected local path to the weights file
     Returns:
         - Path: local path that is guaranteed to exist
     """
-    if model_path is None:
-        model_path = DEFAULT_LOCAL_DIR / DEFAULT_FILENAME
-
+    # Check if the model already exists at the given path
     model_path = Path(model_path)
     if model_path.exists():
         return model_path
 
     print(f"Model not found at {model_path}; fetching default from {HF_REPO_ID}.")
-    return download_model_from_huggingface(
+    return _download_model_from_huggingface(
         filename=DEFAULT_FILENAME,
         local_dir=model_path.parent,
     )
