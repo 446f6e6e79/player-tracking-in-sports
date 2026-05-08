@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from src.geometry.load_camera_data import get_distortion, get_intrinsics, load_camera_data
+from src.geometry.camera_data import CameraData
 from src.types.geometry import FrameRectifiedPoints, RectifiedPoint, RectifiedPointsOutput
 from src.types.tracking import TrackingOutput
 
@@ -36,10 +36,7 @@ def rectify_tracking_output(tracking: TrackingOutput, camera_id: str) -> Rectifi
     Returns:
         - RectifiedPointsOutput: A new output containing rectified points for each detection.
     """
-    # Load camera calibration parameters
-    data = load_camera_data(camera_id)
-    mtx = get_intrinsics(data)
-    dist = get_distortion(data)
+    cam = CameraData.load(camera_id)
 
     # Collect all bounding box centers across all frames
     centers: list[tuple[float, float]] = []
@@ -49,7 +46,7 @@ def rectify_tracking_output(tracking: TrackingOutput, camera_id: str) -> Rectifi
 
     # Rectify all centers in a single batch for efficiency
     centers_array = np.array(centers, dtype=np.float32) if centers else np.empty((0, 2), dtype=np.float32)
-    rectified_array = rectify_points(centers_array, mtx, dist)
+    rectified_array = rectify_points(centers_array, cam.mtx, cam.dist)
 
     # Reconstruct the output frames with rectified points, preserving the original structure
     frames: list[FrameRectifiedPoints] = []

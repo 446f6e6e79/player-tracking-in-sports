@@ -1,12 +1,7 @@
 import cv2
 import numpy as np
 
-from src.geometry.load_camera_data import (
-    get_distortion,
-    get_extrinsics,
-    get_intrinsics,
-    load_camera_data,
-)
+from src.geometry.camera_data import CameraData
 from src.types.geometry import (
     FrameTriangulatedPoints,
     Point3D,
@@ -161,10 +156,8 @@ def triangulate_rectified_outputs(
     camera_ids = sorted(outputs.keys())
     projections: dict[str, np.ndarray] = {}
     for cam_id in camera_ids:
-        data = load_camera_data(cam_id)
-        mtx = get_intrinsics(data)
-        rvec, tvec = get_extrinsics(data)
-        projections[cam_id] = build_projection_matrix(mtx, rvec, tvec)
+        cam = CameraData.load(cam_id)
+        projections[cam_id] = build_projection_matrix(cam.mtx, cam.rvec, cam.tvec)
 
     # Sanity: all outputs should share fps; take the first as canonical.
     fps = outputs[camera_ids[0]].fps
