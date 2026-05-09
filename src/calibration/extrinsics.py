@@ -3,7 +3,6 @@ import numpy as np
 
 from src.geometry.court import LANDMARKS, WORLD_LANDMARKS_MM
 
-
 # Canonical home for the picker output type — picker.py imports it from here
 # so that extrinsics doesn't depend on the UI module.
 LandmarkClicks = dict[str, tuple[float, float] | None]

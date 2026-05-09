@@ -25,11 +25,6 @@ _HOOP_COLOR = (0, 0, 255)
 _BALL_RADIUS = 8
 _PLAYER_RADIUS = 7
 
-# Rim center positions on the world X axis (mm), used to place hoop dots and
-# orient the three-point arc. Mirrors WORLD_LANDMARKS_MM["hoop_*_rim"].
-_LEFT_RIM_X = -12425.0
-_RIGHT_RIM_X = 12425.0
-
 
 def canvas_size() -> tuple[int, int]:
     """(width, height) of the minimap canvas in pixels — what VideoWriter wants."""
@@ -49,22 +44,9 @@ def _polyline_to_px(pts_mm: np.ndarray) -> np.ndarray:
 
 def draw_court(canvas: np.ndarray) -> None:
     """Stroke court lines and hoop centers onto an existing canvas in place."""
-    open_polys = [
-        cp.midline(),
-        cp.three_point_polyline(_LEFT_RIM_X),
-        cp.three_point_polyline(_RIGHT_RIM_X),
-    ]
-    closed_polys = [
-        cp.court_outline(),
-        cp.center_circle(),
-        cp.lane_left(),
-        cp.lane_right(),
-    ]
-    for pts in open_polys:
-        cv2.polylines(canvas, [_polyline_to_px(pts)], False, _COURT_COLOR, 1, cv2.LINE_AA)
-    for pts in closed_polys:
-        cv2.polylines(canvas, [_polyline_to_px(pts)], True, _COURT_COLOR, 1, cv2.LINE_AA)
-    for x_mm in (_LEFT_RIM_X, _RIGHT_RIM_X):
+    for line in cp.court_lines():
+        cv2.polylines(canvas, [_polyline_to_px(line.pts)], line.closed, _COURT_COLOR, 1, cv2.LINE_AA)
+    for x_mm in (cp.LEFT_RIM_X, cp.RIGHT_RIM_X):
         cv2.circle(canvas, world_to_px(x_mm, 0.0), 4, _HOOP_COLOR, -1, cv2.LINE_AA)
 
 
@@ -73,6 +55,22 @@ def make_base_canvas() -> np.ndarray:
     canvas = np.full((_CANVAS_H, _CANVAS_W, 3), _BG_COLOR, dtype=np.uint8)
     draw_court(canvas)
     return canvas
+
+
+def draw_landmark_dots(
+    canvas: np.ndarray,
+    dots: list[tuple[float, float, tuple[int, int, int], str | None]],
+) -> None:
+    """Draw colored dots at world (x_mm, y_mm) positions onto a minimap canvas.
+
+    Each entry in `dots` is (x_mm, y_mm, bgr_color, label_or_None).
+    """
+    for x_mm, y_mm, color, label in dots:
+        px, py = world_to_px(x_mm, y_mm)
+        cv2.circle(canvas, (px, py), 6, color, -1)
+        if label is not None:
+            cv2.putText(canvas, label, (px + 8, py - 4),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1, cv2.LINE_AA)
 
 
 def draw_dot(canvas: np.ndarray, point: Point3D) -> None:

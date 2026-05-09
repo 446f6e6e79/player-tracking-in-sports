@@ -9,7 +9,6 @@ from src.types.geometry import (
     TriangulationOutput,
 )
 
-
 def build_projection_matrix(
     mtx: np.ndarray,
     rvec: np.ndarray,
@@ -29,7 +28,7 @@ def build_projection_matrix(
     return (mtx.astype(np.float32) @ Rt).astype(np.float32)
 
 
-def triangulate_point(
+def _triangulate_point(
     points_2d: np.ndarray,
     projection_matrices: np.ndarray,
 ) -> np.ndarray:
@@ -116,7 +115,7 @@ def triangulate_rectified_outputs(
                 continue
             pts_2d = np.array([[pt.x, pt.y] for _, pt in observations], dtype=np.float64)
             Ps = np.stack([projections[cam_id] for cam_id, _ in observations], axis=0)
-            X = triangulate_point(pts_2d, Ps)
+            X = _triangulate_point(pts_2d, Ps)
             class_name = observations[0][1].class_name
             points_3d.append(Point3D(
                 x=float(X[0]),
