@@ -1,13 +1,3 @@
-"""
-Interactive OpenCV landmark picker used by the extrinsics-calibration flow.
-
-The user is walked through `LANDMARKS` in order: each iteration shows the
-camera frame as canvas, a court-diagram inset highlighting the next target
-in blue (already-clicked = green with ordinal, skipped = red), and a status
-strip stacked above the frame so the header never obscures clicks.
-"""
-
-import functools
 import time
 from typing import Literal
 
@@ -21,6 +11,7 @@ from src.visualization.minimap import make_base_canvas, world_to_px
 # Header strip stacked above the camera frame; the click callback subtracts
 # this to translate window→camera coordinates.
 _STATUS_BAR_HEIGHT = 50
+
 # Drop EVENT_LBUTTONDOWN events arriving faster than this (macOS Cocoa fires duplicates).
 _CLICK_DEBOUNCE_S = 0.25
 _DIAGRAM_INSET_WIDTH = 320

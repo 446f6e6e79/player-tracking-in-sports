@@ -9,7 +9,10 @@ DEFAULT_CAMERA_DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "camera
 # Frozen dataclass preventing accidental mutation of loaded camera data, and providing a single source of truth for JSON paths and load/save logic.
 @dataclass(frozen=True)
 class CameraData:
-    """Calibration parameters for a single camera, parsed from its JSON file."""
+    """
+    Structured camera data loaded from JSON, including intrinsic matrix, 
+    distortion coefficients, and extrinsic parameters if available
+    """
     camera_id: str
     mtx: np.ndarray   # (3, 3) intrinsic matrix
     dist: np.ndarray  # (1, k) distortion coefficients
@@ -18,15 +21,22 @@ class CameraData:
     path: Path        # JSON source path
 
     @classmethod
-    def load(cls, camera_id: str, base_dir: Path | str | None = None) -> "CameraData":
-        """Parse `<base_dir>/<camera_id>.json`. `base_dir` defaults to <repo_root>/data/camera_data."""
-        base = Path(base_dir) if base_dir is not None else DEFAULT_CAMERA_DATA_DIR
+    def load(
+        cls, 
+        camera_id: str, 
+        base_dir: Path | str = DEFAULT_CAMERA_DATA_DIR
+    ) -> "CameraData":
+        """Load camera data from a JSON file named `{camera_id}.json` in `base_dir`"""
+        # Save the base directory as a Path object for consistent path handling
+        base = Path(base_dir)
         path = base / f"{camera_id}.json"
         if not path.exists():
             raise FileNotFoundError(f"Camera data file not found: {path}")
+        
+        # Load the JSON data and convert to numpy arrays
         with open(path, "r") as f:
             data = json.load(f)
-        zero3 = [[0.0], [0.0], [0.0]]
+        zero3 = [[0.0], [0.0], [0.0]]   # Default value for rvec/tvec if not present in JSON
         return cls(
             camera_id=camera_id,
             mtx=np.array(data["mtx"], dtype=np.float32),
@@ -36,7 +46,11 @@ class CameraData:
             path=path,
         )
 
-    def save_extrinsics(self, rvec: np.ndarray, tvec: np.ndarray) -> None:
+    def save_extrinsics(
+        self, 
+        rvec: np.ndarray, 
+        tvec: np.ndarray
+    ) -> None:
         """
         Overwrite the rvecs/tvecs entries in `self.path`, preserving mtx/dist.
         Does not mutate `self` (frozen dataclass) — callers reload if they need
