@@ -65,9 +65,9 @@ class ReprojectionMetrics:
     accuracy_at_5px: float            # Percentage of projections with error < 5 px
     accuracy_at_10px: float           # Percentage of projections with error < 10 px
 
-    total_matches: int                # Number of matched GT/prediction pairs
-    unmatched_predictions: int        # Predicted points without GT match
-    unmatched_gt: int                 # GT points without prediction match
+    tp: int                # Number of matched GT/prediction pairs
+    fp: int                # Number of false positives (predicted points without GT match)
+    fn: int                # Number of false negatives (GT points without prediction match)
 
 
 @dataclass

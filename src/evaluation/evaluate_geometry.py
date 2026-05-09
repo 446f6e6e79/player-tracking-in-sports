@@ -3,17 +3,14 @@ from collections import defaultdict
 import numpy as np
 
 from src.calibration.camera_data import CameraData
-from src.types.geometry import TriangulationOutput
-from src.types.tracking import TrackingOutput, TrackedDetection
+from src.types.geometry import TriangulationOutput, RectifiedPoint, RectifiedPointsOutput
 from src.types.evaluation import (
     GeometryMetrics,
     ReprojectionMetrics,
     TrajectoryMetrics,
 )
 from src.evaluation.geometry_helpers import (
-    _ProjectedPoint,
     project_triangulation,
-    build_annotated_index,
 )
 
 
@@ -23,8 +20,8 @@ from src.evaluation.geometry_helpers import (
 
 def compute_reprojection_metrics(
     triangulation: TriangulationOutput,
-    projected_index: dict[int, list[_ProjectedPoint]],
-    annotated_index: dict[int, list[TrackedDetection]],
+    projected_index: dict[int, list[RectifiedPoint]],
+    annotated_index: dict[int, list[RectifiedPoint]],
     frame_stride: int,
 ) -> tuple[ReprojectionMetrics]:
     """
@@ -52,9 +49,9 @@ def compute_reprojection_metrics(
         projected = projected_index.get(frame.frame_index, []) or projected_index.get(pred_frame_idx, [])
         annotated = annotated_index.get(frame.frame_index, []) or annotated_index.get(pred_frame_idx, [])
 
-        # Build lookup tables by class_name
-        projected_by_class: dict[str, _ProjectedPoint] = {}
-        annotated_by_class: dict[str, TrackedDetection] = {}
+        # Build lookup tables by class_name (use raw labels)
+        projected_by_class: dict[str, RectifiedPoint] = {}
+        annotated_by_class: dict[str, RectifiedPoint] = {}
 
         for p in projected:
             projected_by_class[p.class_name] = p
@@ -68,9 +65,8 @@ def compute_reprojection_metrics(
                 pred_det = annotated_by_class[class_name]
                 matched_predictions.add(class_name)
                 
-                # Compute reprojection error
-                cx, cy = pred_det.bbox.get_center()
-                error = np.sqrt((gt_point.x - cx) ** 2 + (gt_point.y - cy) ** 2)
+                # Compute reprojection error in the same pixel space
+                error = np.sqrt((gt_point.x - pred_det.x) ** 2 + (gt_point.y - pred_det.y) ** 2)
                 all_errors.append(float(error))
                 total_matches += 1
             else:
@@ -102,9 +98,9 @@ def compute_reprojection_metrics(
         accuracy_at_2px       = acc_2px,
         accuracy_at_5px       = acc_5px,
         accuracy_at_10px      = acc_10px,
-        total_matches         = total_matches,
-        unmatched_predictions = unmatched_predictions,
-        unmatched_gt          = unmatched_gt,
+        tp                    = total_matches,
+        fp                    = unmatched_predictions,
+        fn                    = unmatched_gt,
     )
 
 
@@ -114,8 +110,8 @@ def compute_reprojection_metrics(
 
 def compute_trajectory_metrics(
     triangulation: TriangulationOutput,
-    projected_index: dict[int, list[_ProjectedPoint]],
-    annotated_index: dict[int, list[TrackedDetection]],
+    projected_index: dict[int, list[RectifiedPoint]],
+    annotated_index: dict[int, list[RectifiedPoint]],
     frame_stride: int,
 ) -> TrajectoryMetrics:
     """
@@ -148,8 +144,7 @@ def compute_trajectory_metrics(
         for p in projected:
             gt_traj[p.class_name].append((gt_pos, p.x, p.y))
         for d in annotated:
-            cx, cy = d.bbox.get_center()
-            pred_traj[d.class_name].append((gt_pos, float(cx), float(cy)))
+            pred_traj[d.class_name].append((gt_pos, float(d.x), float(d.y)))
 
     # Match GT and pred by class_name
     ade_values:        list[float] = []
@@ -220,13 +215,13 @@ def compute_trajectory_metrics(
 
 def evaluate_geometry(
     triangulations: TriangulationOutput,
-    annotated_tracking: dict[str, TrackingOutput],
+    annotated_tracking: dict[str, RectifiedPointsOutput],
     frame_stride: int = 1,
 ) -> dict[str, GeometryMetrics]:
     """
     Evaluate 3D tracking quality by projecting the annotated GT
     `TriangulationOutput` into each camera's 2D pixel space and comparing
-    against the per-camera annotated `TrackingOutput`.
+    against the per-camera rectified annotated outputs.
 
     Identities are matched directly by class_name ↔ track_id — no spatial
     thresholding is applied. The reprojection error for each matched pair is
@@ -242,7 +237,7 @@ def evaluate_geometry(
         - triangulations: annotated `TriangulationOutput` (source of GT
           identity and 3D world positions). `Point3D.class_name` is the GT
           identity key (e.g. "White_14").
-        - annotated_tracking: map of camera_id → annotated `TrackingOutput`
+        - annotated_tracking: map of camera_id → rectified annotated outputs
           to evaluate against.
         - frame_stride: positional stride between triangulation frames and
           prediction frame indices (default 1, i.e. no stride).
@@ -254,8 +249,12 @@ def evaluate_geometry(
     for camera_id, tracking_output in sorted(annotated_tracking.items()):
         cam = CameraData.load(camera_id)
 
+        # project GT into the rectified pixel space used by the inputs
         projected_index = project_triangulation(triangulations, cam)
-        annotated_index = build_annotated_index(tracking_output)
+        annotated_index = {
+            frame.frame_index: frame.points
+            for frame in tracking_output.frames
+        }
 
         reprojection = compute_reprojection_metrics(
             triangulations, projected_index, annotated_index, frame_stride

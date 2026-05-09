@@ -75,9 +75,9 @@ def show_reprojection_table(results: dict[str, GeometryMetrics]) -> None:
             "Acc @ 2px":    round(r.accuracy_at_2px,  3),
             "Acc @ 5px":    round(r.accuracy_at_5px,  3),
             "Acc @ 10px":   round(r.accuracy_at_10px, 3),
-            "Matched":      r.total_matches,
-            "Unmatch GT":   r.unmatched_gt,
-            "Unmatch Pred": r.unmatched_predictions,
+            "TP":           r.tp,
+            "FP":           r.fp,
+            "FN":           r.fn,
         })
     display(pd.DataFrame(rows).set_index("Camera"))
 
