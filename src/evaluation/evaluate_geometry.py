@@ -12,11 +12,8 @@ from src.types.evaluation import (
 )
 from src.evaluation.geometry_helpers import (
     _ProjectedPoint,
-    _FrameMatch,
     project_triangulation,
     build_annotated_index,
-    match_frame,
-    _iter_frame_pairs,
 )
 
 
@@ -29,7 +26,7 @@ def compute_reprojection_metrics(
     projected_index: dict[int, list[_ProjectedPoint]],
     annotated_index: dict[int, list[TrackedDetection]],
     frame_stride: int,
-) -> tuple[ReprojectionMetrics, list[_FrameMatch]]:
+) -> tuple[ReprojectionMetrics]:
     """
     Aggregate frame-level identity matches into ReprojectionMetrics.
     Also returns the full list of matches for downstream trajectory analysis.
@@ -42,17 +39,47 @@ def compute_reprojection_metrics(
     Returns:
         ReprojectionMetrics, and the flat list of all frame-level _FrameMatch pairs.
     """
-    all_errors:          list[float] = []
-    all_matches:         list[_FrameMatch] = []
-    total_unmatched_gt   = 0
-    total_unmatched_pred = 0
+    all_errors: list[float] = []
+    total_matches = 0
+    unmatched_gt = 0
+    unmatched_predictions = 0
 
-    for _, projected, annotated in _iter_frame_pairs(triangulation, projected_index, annotated_index, frame_stride):
-        matches, unmatched_gt, unmatched_pred = match_frame(projected, annotated)
-        all_matches.extend(matches)
-        all_errors.extend(m.error_px for m in matches)
-        total_unmatched_gt   += unmatched_gt
-        total_unmatched_pred += unmatched_pred
+    # Iterate through triangulation frames
+    for gt_pos, frame in enumerate(triangulation.frames):
+        # map triangulation position to prediction frame index
+        pred_frame_idx = gt_pos * frame_stride
+
+        projected = projected_index.get(frame.frame_index, []) or projected_index.get(pred_frame_idx, [])
+        annotated = annotated_index.get(frame.frame_index, []) or annotated_index.get(pred_frame_idx, [])
+
+        # Build lookup tables by class_name
+        projected_by_class: dict[str, _ProjectedPoint] = {}
+        annotated_by_class: dict[str, TrackedDetection] = {}
+
+        for p in projected:
+            projected_by_class[p.class_name] = p
+        for d in annotated:
+            annotated_by_class[d.class_name] = d
+
+        # Match GT to predictions by class_name
+        matched_predictions = set()
+        for class_name, gt_point in projected_by_class.items():
+            if class_name in annotated_by_class:
+                pred_det = annotated_by_class[class_name]
+                matched_predictions.add(class_name)
+                
+                # Compute reprojection error
+                cx, cy = pred_det.bbox.get_center()
+                error = np.sqrt((gt_point.x - cx) ** 2 + (gt_point.y - cy) ** 2)
+                all_errors.append(float(error))
+                total_matches += 1
+            else:
+                unmatched_gt += 1
+
+        # Count unmatched predictions
+        for class_name in annotated_by_class:
+            if class_name not in matched_predictions:
+                unmatched_predictions += 1
 
     if all_errors:
         errors     = np.array(all_errors, dtype=np.float64)
@@ -75,10 +102,10 @@ def compute_reprojection_metrics(
         accuracy_at_2px       = acc_2px,
         accuracy_at_5px       = acc_5px,
         accuracy_at_10px      = acc_10px,
-        total_matches         = len(all_matches),
-        unmatched_predictions = total_unmatched_pred,
-        unmatched_gt          = total_unmatched_gt,
-    ), all_matches
+        total_matches         = total_matches,
+        unmatched_predictions = unmatched_predictions,
+        unmatched_gt          = unmatched_gt,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -89,40 +116,42 @@ def compute_trajectory_metrics(
     triangulation: TriangulationOutput,
     projected_index: dict[int, list[_ProjectedPoint]],
     annotated_index: dict[int, list[TrackedDetection]],
-    all_matches: list[_FrameMatch],
     frame_stride: int,
 ) -> TrajectoryMetrics:
     """
     Build per-identity GT and pred pixel trajectories, then compute ADE, FDE,
     MTE, smoothness and jitter. Since identities are already aligned, no
-    association step is needed — GT class_name maps directly to pred track_id.
+    association step is needed — GT class_name maps directly to pred class_name.
 
     Parameters:
         - triangulation: annotated TriangulationOutput (drives the frame clock).
         - projected_index: frame_index → projected triangulation points.
         - annotated_index: frame_index → annotated detections.
-        - all_matches: flat list of frame-level matches from compute_reprojection_metrics.
         - frame_stride: positional stride between triangulation and prediction frames.
     Returns:
         TrajectoryMetrics aggregated over all GT↔pred trajectory pairs.
     """
     # Build GT and pred trajectories in a single pass over frames
     gt_traj:   dict[str, list[tuple[int, float, float]]] = defaultdict(list)
-    pred_traj: dict[int, list[tuple[int, float, float]]] = defaultdict(list)
+    pred_traj: dict[str, list[tuple[int, float, float]]] = defaultdict(list)
 
-    for gt_pos, projected, annotated in _iter_frame_pairs(triangulation, projected_index, annotated_index, frame_stride):
+    # Iterate triangulation frames and look up projected/annotated detections
+    # by the triangulation frame index; apply `frame_stride` via position
+    # if predictions are sampled at a different rate.
+    for gt_pos, frame in enumerate(triangulation.frames):
+        # map triangulation position to prediction frame index
+        pred_frame_idx = gt_pos * frame_stride
+
+        projected = projected_index.get(frame.frame_index, []) or projected_index.get(pred_frame_idx, [])
+        annotated = annotated_index.get(frame.frame_index, []) or annotated_index.get(pred_frame_idx, [])
+
         for p in projected:
             gt_traj[p.class_name].append((gt_pos, p.x, p.y))
         for d in annotated:
             cx, cy = d.bbox.get_center()
-            pred_traj[d.track_id].append((gt_pos, float(cx), float(cy)))
+            pred_traj[d.class_name].append((gt_pos, float(cx), float(cy)))
 
-    # Derive gt_class → pred_track_id from matches (one-to-one by construction)
-    assoc: dict[str, int] = {}
-    for m in all_matches:
-        if m.gt_class not in assoc:
-            assoc[m.gt_class] = m.pred_track
-
+    # Match GT and pred by class_name
     ade_values:        list[float] = []
     fde_values:        list[float] = []
     mte_values:        list[float] = []
@@ -132,12 +161,14 @@ def compute_trajectory_metrics(
     trajectory_fragments = 0
 
     for gt_class, gt_pts in gt_traj.items():
-        pred_track = assoc.get(gt_class)
-        if pred_track is None or pred_track not in pred_traj:
+        # Match by class_name directly
+        if gt_class not in pred_traj:
             continue
 
+        pred_pts = pred_traj[gt_class]
+
         gt_pos_map:   dict[int, tuple[float, float]] = {fp: (x, y) for fp, x, y in gt_pts}
-        pred_pos_map: dict[int, tuple[float, float]] = {fp: (x, y) for fp, x, y in pred_traj[pred_track]}
+        pred_pos_map: dict[int, tuple[float, float]] = {fp: (x, y) for fp, x, y in pred_pts}
 
         common_frames = sorted(gt_pos_map.keys() & pred_pos_map.keys())
         if not common_frames:
@@ -154,7 +185,7 @@ def compute_trajectory_metrics(
         fde_values.append(float(errors[-1]))
         mte_values.append(float(np.median(errors)))
 
-        pred_pts_sorted = sorted(pred_traj[pred_track])
+        pred_pts_sorted = sorted(pred_pts)
         if len(pred_pts_sorted) >= 2:
             pred_arr      = np.array([(x, y) for _, x, y in pred_pts_sorted], dtype=np.float64)
             displacements = np.linalg.norm(np.diff(pred_arr, axis=0), axis=1)
@@ -226,11 +257,11 @@ def evaluate_geometry(
         projected_index = project_triangulation(triangulations, cam)
         annotated_index = build_annotated_index(tracking_output)
 
-        reprojection, all_matches = compute_reprojection_metrics(
+        reprojection = compute_reprojection_metrics(
             triangulations, projected_index, annotated_index, frame_stride
         )
         trajectory = compute_trajectory_metrics(
-            triangulations, projected_index, annotated_index, all_matches, frame_stride
+            triangulations, projected_index, annotated_index, frame_stride
         )
 
         results[camera_id] = GeometryMetrics(
