@@ -1,7 +1,7 @@
 import pandas as pd
 from IPython.display import display
 
-from src.types.evaluation import DetectionMetrics, TrackingMetrics
+from src.types.evaluation import DetectionMetrics, TrackingMetrics, GeometryMetrics
 
 
 def show_detection_table(results: dict[tuple[str, str], DetectionMetrics]) -> None:
@@ -55,3 +55,50 @@ def show_hota_table(results: dict[tuple[str, str], TrackingMetrics]) -> None:
             "AssA": round(h.assa, 3), "LocA": round(h.loca, 3),
         })
     display(pd.DataFrame(rows).set_index(["Tracker", "Camera"]))
+
+
+def show_reprojection_table(results: dict[str, GeometryMetrics]) -> None:
+    """Display a reprojection metrics table with one row per camera.
+
+    Parameters:
+        - results: mapping of camera_id to GeometryMetrics.
+    """
+    rows = []
+    for camera, metrics in results.items():
+        r = metrics.reprojection
+        rows.append({
+            "Camera":       camera,
+            "Mean (px)":    round(r.mean_error_px,    2),
+            "Median (px)":  round(r.median_error_px,  2),
+            "RMSE (px)":    round(r.rmse_px,          2),
+            "Std (px)":     round(r.std_error_px,     2),
+            "Acc @ 2px":    round(r.accuracy_at_2px,  3),
+            "Acc @ 5px":    round(r.accuracy_at_5px,  3),
+            "Acc @ 10px":   round(r.accuracy_at_10px, 3),
+            "Matched":      r.total_matches,
+            "Unmatch GT":   r.unmatched_gt,
+            "Unmatch Pred": r.unmatched_predictions,
+        })
+    display(pd.DataFrame(rows).set_index("Camera"))
+
+
+def show_trajectory_table(results: dict[str, GeometryMetrics]) -> None:
+    """Display a trajectory metrics table with one row per camera.
+
+    Parameters:
+        - results: mapping of camera_id to GeometryMetrics.
+    """
+    rows = []
+    for camera, metrics in results.items():
+        t = metrics.trajectory
+        rows.append({
+            "Camera":      camera,
+            "ADE (px)":    round(t.ade_px,                    2),
+            "FDE (px)":    round(t.fde_px,                    2),
+            "MTE (px)":    round(t.mte_px,                    2),
+            "Smooth (px)": round(t.trajectory_smoothness_px,  2),
+            "Jitter (px)": round(t.jitter_px,                 2),
+            "Trajs":       t.total_trajectories,
+            "Fragments":   t.trajectory_fragments,
+        })
+    display(pd.DataFrame(rows).set_index("Camera"))

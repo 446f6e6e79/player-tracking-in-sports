@@ -1,6 +1,6 @@
 import motmetrics as mm
 
-from src.evaluation.helpers import build_accumulator
+from src.evaluation.tracking_helpers import build_accumulator
 from src.types.evaluation import DetectionMetrics
 from src.types.tracking import DetectionOutput
 

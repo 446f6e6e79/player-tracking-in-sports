@@ -3,7 +3,7 @@ import numpy as np
 import motmetrics as mm
 import trackeval
 
-from src.evaluation.helpers import (
+from src.evaluation.tracking_helpers import (
     build_accumulator,
     build_hota_data,
 )
