@@ -19,10 +19,10 @@ sys.path.insert(0, str(REPO_ROOT))
 
 import numpy as np
 
-from src.geometry.camera_data import CameraData
-from src.geometry.extrinsics_calibration import solve_camera_pose
-from src.geometry.landmark_picker import collect_clicks
-from src.utils.video import get_frames, open_video
+from src.calibration.camera_data import CameraData
+from src.calibration.extrinsics import solve_camera_pose
+from src.calibration.picker import collect_clicks
+from src.utils.video_io import get_frames, open_video
 
 
 def parse_args() -> argparse.Namespace:
@@ -51,6 +51,8 @@ def _load_first_frame(camera_id: str, input_dir: Path) -> np.ndarray:
 
 def main() -> None:
     args = parse_args()
+    
+    # Load the camera parameters from disk
     cam = CameraData.load(args.camera)
     frame = _load_first_frame(args.camera, Path(args.input_dir))
 

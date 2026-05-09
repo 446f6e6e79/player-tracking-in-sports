@@ -1,9 +1,38 @@
 import cv2
 import numpy as np
 
-from src.geometry.calibration_landmarks import LandmarkClicks
 from src.geometry.court import LANDMARKS, WORLD_LANDMARKS_MM
-from src.geometry.triangulation import compute_extrinsics
+
+
+# Canonical home for the picker output type — picker.py imports it from here
+# so that extrinsics doesn't depend on the UI module.
+LandmarkClicks = dict[str, tuple[float, float] | None]
+
+
+def compute_extrinsics(
+    world_points: np.ndarray,
+    image_points: np.ndarray,
+    mtx: np.ndarray,
+    dist: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Compute camera extrinsics from N>=4 court reference correspondences via solvePnP.
+    Parameters:
+        - world_points (np.ndarray): (N, 3) reference points in world (court) coordinates.
+        - image_points (np.ndarray): (N, 2) matching pixel coordinates in the raw,
+          distorted image (solvePnP applies the distortion model internally).
+        - mtx (np.ndarray): 3x3 camera intrinsic matrix.
+        - dist (np.ndarray): Distortion coefficients.
+    Returns:
+        - rvec (np.ndarray): (3, 1) rotation vector (Rodrigues form), float32.
+        - tvec (np.ndarray): (3, 1) translation vector, float32.
+    """
+    obj_pts = np.asarray(world_points, dtype=np.float32).reshape(-1, 3)
+    img_pts = np.asarray(image_points, dtype=np.float32).reshape(-1, 2)
+    ok, rvec, tvec = cv2.solvePnP(obj_pts, img_pts, mtx, dist, flags=cv2.SOLVEPNP_ITERATIVE)
+    if not ok:
+        raise RuntimeError("solvePnP failed to converge")
+    return rvec.astype(np.float32), tvec.astype(np.float32)
 
 
 def solve_camera_pose(

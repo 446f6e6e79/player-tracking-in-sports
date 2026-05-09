@@ -17,8 +17,8 @@ FIBA dimensions (mm):
               bottom edge 2900 above the floor.
 
 This module is the **source of truth** for which landmarks exist (`LANDMARKS`
-is derived from `WORLD_LANDMARKS_MM`). The UI layer in
-`src.geometry.calibration_landmarks` consumes it, not the other way around.
+is derived from `WORLD_LANDMARKS_MM`). The calibration UI in
+`src.calibration.picker` consumes it, not the other way around.
 """
 import numpy as np
 

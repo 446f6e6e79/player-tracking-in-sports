@@ -32,7 +32,8 @@ from src.detection.yolo.model import load_fine_tuned_yolo_model
 from src.tracking.deep_sort import apply_deep_sort
 from src.tracking.label_resolution import resolve_track_labels
 from src.types.tracking import merge_detections
-from src.utils.video import get_frames, open_video, produce_tracking_output_video
+from src.utils.video_io import get_frames, open_video
+from src.utils.video_render import produce_tracking_output_video
 
 
 def parse_args() -> argparse.Namespace:

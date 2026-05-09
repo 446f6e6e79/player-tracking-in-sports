@@ -1,39 +1,13 @@
 import cv2
 import numpy as np
 
-from src.geometry.camera_data import CameraData
+from src.calibration.camera_data import CameraData
 from src.types.geometry import (
     FrameTriangulatedPoints,
     Point3D,
     RectifiedPointsOutput,
     TriangulationOutput,
 )
-
-
-def compute_extrinsics(
-    world_points: np.ndarray,
-    image_points: np.ndarray,
-    mtx: np.ndarray,
-    dist: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Compute camera extrinsics from N>=4 court reference correspondences via solvePnP.
-    Parameters:
-        - world_points (np.ndarray): (N, 3) reference points in world (court) coordinates.
-        - image_points (np.ndarray): (N, 2) matching pixel coordinates in the raw,
-          distorted image (solvePnP applies the distortion model internally).
-        - mtx (np.ndarray): 3x3 camera intrinsic matrix.
-        - dist (np.ndarray): Distortion coefficients.
-    Returns:
-        - rvec (np.ndarray): (3, 1) rotation vector (Rodrigues form), float32.
-        - tvec (np.ndarray): (3, 1) translation vector, float32.
-    """
-    obj_pts = np.asarray(world_points, dtype=np.float32).reshape(-1, 3)
-    img_pts = np.asarray(image_points, dtype=np.float32).reshape(-1, 2)
-    ok, rvec, tvec = cv2.solvePnP(obj_pts, img_pts, mtx, dist, flags=cv2.SOLVEPNP_ITERATIVE)
-    if not ok:
-        raise RuntimeError("solvePnP failed to converge")
-    return rvec.astype(np.float32), tvec.astype(np.float32)
 
 
 def build_projection_matrix(
@@ -85,6 +59,7 @@ def triangulate_point(
 
 
 def triangulate_rectified_outputs(
+    cameras: dict[str, CameraData],
     outputs: dict[str, RectifiedPointsOutput],
 ) -> TriangulationOutput:
     """
@@ -94,8 +69,9 @@ def triangulate_rectified_outputs(
     across cameras refer to the same object. Class ids visible in only one camera
     are skipped.
     Parameters:
+        - cameras (dict[str, CameraData]): Pre-loaded calibration per camera_id.
         - outputs (dict[str, RectifiedPointsOutput]): Map of camera_id -> rectified
-          tracking output for the same synchronised game act.
+          tracking output for the same synchronised game act. Keys must match `cameras`.
     Returns:
         - TriangulationOutput: Per-frame 3D points across all cameras.
     """
@@ -104,10 +80,10 @@ def triangulate_rectified_outputs(
 
     # Stable camera order, plus per-camera projection matrices and intrinsics.
     camera_ids = sorted(outputs.keys())
-    projections: dict[str, np.ndarray] = {}
-    for cam_id in camera_ids:
-        cam = CameraData.load(cam_id)
-        projections[cam_id] = build_projection_matrix(cam.mtx, cam.rvec, cam.tvec)
+    projections: dict[str, np.ndarray] = {
+        cam_id: build_projection_matrix(cameras[cam_id].mtx, cameras[cam_id].rvec, cameras[cam_id].tvec)
+        for cam_id in camera_ids
+    }
 
     # Sanity: all outputs should share fps; take the first as canonical.
     fps = outputs[camera_ids[0]].fps
