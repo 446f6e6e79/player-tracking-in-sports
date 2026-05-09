@@ -4,7 +4,7 @@ from huggingface_hub import hf_hub_download
 from ultralytics import YOLO
 
 # Hugging Face repo where the fine-tuned YOLOv11m basketball weights are published.
-HF_REPO_ID = "446f6e6e79/yolo11m-basketball-fineTuned"
+HF_REPO_ID = "446f6e6e79/YOLO-basketball-fineTuned"
 DEFAULT_FILENAME = "best.pt"
 DEFAULT_LOCAL_DIR = Path("models/fine_tuned_models")
 

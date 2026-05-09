@@ -4,7 +4,7 @@
     <strong>
         <a href="docs/report/report.pdf">View Full Report (PDF)</a>
         &nbsp;·&nbsp;
-        <a href="https://huggingface.co/446f6e6e79/yolo11m-basketball-fineTuned">🤗 Fine-tuned model on Hugging Face</a>
+        <a href="https://huggingface.co/446f6e6e79/YOLO-basketball-fineTuned">🤗 Fine-tuned model on Hugging Face</a>
     </strong><br><br>
     <a href="docs/report/report.pdf">
         <img src="docs/media/report-preview.png" width="200" alt="Report preview">
@@ -21,7 +21,7 @@
 
 End-to-end pipeline for tracking basketball players and the ball across multiple synchronised camera views and reconstructing their 3D positions on the court. 
 
-For the detection step, a fine-tuned YOLOv11m is run as a two-pass scheme (player pass at 640 px, ball-only pass at 1280 px), merged via class-independent NMS. 
+For the detection step, a fine-tuned YOLO is run as a two-pass scheme (player pass at 640 px, ball-only pass at 1280 px), merged via class-independent NMS. 
 
 Tracks are produced with DeepSORT and stabilised by a cumulative-confidence label-resolution step. 
 
@@ -31,7 +31,7 @@ Tracks are produced with DeepSORT and stabilised by a cumulative-confidence labe
 - **Python 3.11+** (matches `requirements.txt`: `numpy==2.4.3`, `torch==2.11.0`).
 - **ffmpeg** on `PATH` for OpenCV video writing.
 - **Match videos** in `data/videos/` as `out2.mp4`, `out4.mp4`, `out13.mp4` (cameras `cam_2`, `cam_4`, `cam_13`).
-- **Fine-tuned weights** at `models/fine_tuned_models/best.pt` (default used by the pipeline script). Auto-downloaded from the [🤗 Hugging Face repo](https://huggingface.co/446f6e6e79/yolo11m-basketball-fineTuned) on first run; you can also produce your own with the fine-tune flow below. 
+- **Fine-tuned weights** at `models/fine_tuned_models/best.pt` (default used by the pipeline script). Auto-downloaded from the [🤗 Hugging Face repo](https://huggingface.co/446f6e6e79/YOLO-basketball-fineTuned) on first run; you can also produce your own with the fine-tune flow below. 
 - **Roboflow API key** (only needed if you run the evaluation cell in `notebook.ipynb`). Copy `.env.example` to `.env` and fill in `ANNOTATIONS_API_KEY`.
 
 ## Setup Environment
@@ -52,7 +52,7 @@ pip install -r requirements.txt
 jupyter lab notebook.ipynb
 ```
 
-Walks through MOG2 baseline → YOLOv11 baseline → fine-tuned two-pass detection → merge → evaluation. Change `CURRENT_CAMERA_ID` in the second cell to switch between `cam_2`, `cam_4`, and `cam_13`.
+Walks through MOG2 baseline → YOLO baseline → fine-tuned two-pass detection → merge → evaluation. Change `CURRENT_CAMERA_ID` in the second cell to switch between `cam_2`, `cam_4`, and `cam_13`.
 
 ### End-to-end 2D pipeline — `scripts/run_2D_pipeline.py`
 
@@ -67,11 +67,11 @@ Useful flags:
 - `--save-detection-video` / `--save-tracking-video` — also write the intermediate videos.
 - `--model <path>` — override the default fine-tuned weights.
 
-### Fine-tune YOLOv11m
+### Fine-tune YOLO
 
 Two options.
 
-**Colab (recommended — needs GPU).** Open [`finetune.ipynb`](finetune.ipynb) in Colab, set the runtime to GPU, add `ROBOFLOW_API_KEY` to Colab Secrets, and fill the `TODO_WORKSPACE` / `TODO_PROJECT` / `TODO_VERSION` placeholders. The final cell downloads `yolo11m_finetuned.pt` to your machine — drop it into `models/fine_tuned_models/` to use it from the notebook or the pipeline script, or push it to the [🤗 Hugging Face repo](https://huggingface.co/446f6e6e79/yolo11m-basketball-fineTuned) so other contributors can pull it via `scripts/download_model.py`.
+**Colab (recommended — needs GPU).** Open [`finetune.ipynb`](finetune.ipynb) in Colab, set the runtime to GPU, add `ROBOFLOW_API_KEY` to Colab Secrets, and fill the `TODO_WORKSPACE` / `TODO_PROJECT` / `TODO_VERSION` placeholders. The final cell downloads `yolo11m_finetuned.pt` to your machine — drop it into `models/fine_tuned_models/` to use it from the notebook or the pipeline script, or push it to the [🤗 Hugging Face repo](https://huggingface.co/446f6e6e79/YOLO-basketball-fineTuned) so other contributors can pull it via `scripts/download_model.py`.
 
 **Local.** Download a Roboflow YOLO export manually, then:
 
@@ -95,7 +95,7 @@ player-tracking-in-sports/
 ├── scripts/
 │   ├── run_2D_pipeline.py        # End-to-end 2D pipeline (CLI)
 │   ├── download_model.py         # Pull fine-tuned weights from Hugging Face
-│   └── finetune.py               # YOLOv11m fine-tuning (CLI)
+│   └── finetune.py               # YOLO fine-tuning (CLI)
 ├── notebook.ipynb                # Exploratory walkthrough
 ├── finetune.ipynb                # Colab orchestrator for scripts/finetune.py
 ├── models/                       # YOLO weights (git-ignored)
