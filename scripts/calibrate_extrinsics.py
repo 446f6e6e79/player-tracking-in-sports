@@ -3,10 +3,10 @@ Single-camera extrinsics calibration via solvePnP against the 3D court model.
 
 The user clicks court landmarks on the camera's first frame; each landmark has a
 known 3D world coordinate (FIBA dimensions, origin at the court center, +Z up —
-see `src/geometry/court.py`). solvePnP recovers the camera's rvec/tvec
-directly in the court frame — no anchor camera, no relative pose, no separate
-scale step.
+see `src/geometry/court.py` for more details).
 
+SolvePnP recovers the camera's rvec/tvec directly in the court frame, without the need of an
+anchoring step. The user can verify the reprojection residuals before deciding to save the extrinsics to disk.
 Usage:
     python scripts/calibrate_extrinsics.py --camera cam_13
 """
@@ -57,12 +57,15 @@ def main() -> None:
     frame = _load_first_frame(args.camera, Path(args.input_dir))
 
     print(f"\n=== Click landmarks in {args.camera} ===")
+    # Collect 2D-3D correspondences via user clicks
     clicks, status = collect_clicks(args.camera, frame, args.display_max_dim)
+    # If the user quit during clicking, we should not write any JSON file
     if status == "quit":
         print("Quit requested. No JSON written.")
         return
-
+    
     try:
+        # Compute the camera pose via solvePnP, and get the reprojection residuals for each landmark
         rvec, tvec, labels, residuals = solve_camera_pose(clicks, cam.mtx, cam.dist)
     except ValueError as e:
         print(f"\nsolvePnP refused: {e}")
@@ -73,13 +76,12 @@ def main() -> None:
     for label, residual in zip(labels, residuals):
         print(f"    {label:<32s} residual={residual:.2f}")
 
-    print(f"\ntvec (mm) = [{tvec[0,0]:.1f}, {tvec[1,0]:.1f}, {tvec[2,0]:.1f}]")
-    print(f"rvec      = [{rvec[0,0]:.4f}, {rvec[1,0]:.4f}, {rvec[2,0]:.4f}]")
-
+    # Prompt the user to confirm writing the extrinsics to disk 
     answer = input(f"\nWrite extrinsics for {args.camera}? [y/N]: ").strip().lower()
     if answer != "y":
         print("Discarded. No JSON modified.")
         return
+    # Save the extrinsics to disk
     cam.save_extrinsics(rvec, tvec)
     print(f"Wrote rvec/tvec to {cam.path}")
 

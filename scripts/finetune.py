@@ -39,8 +39,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--imgsz", type=int, default=1280, help="Train at high res so the ball is learnable")
     p.add_argument("--batch", type=int, default=4, help="Batch size")
     p.add_argument("--device", default=None, help="0 for first GPU, 'cpu' to force CPU; None=auto")
-    p.add_argument("--name", default="yolo26m_basketball", help="Run name under runs/detect/")
-    p.add_argument("--out", default="models/yolo26m_finetuned.pt", help="Where to copy best.pt")
+    p.add_argument("--name", default="yolo_basketball", help="Run name under runs/detect/")
+    p.add_argument("--out", default="models/yolo_finetuned.pt", help="Where to copy best.pt")
     return p.parse_args()
 
 
