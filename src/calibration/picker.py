@@ -9,17 +9,14 @@ strip stacked above the frame so the header never obscures clicks.
 
 import functools
 import time
-from pathlib import Path
 from typing import Literal
 
 import cv2
 import numpy as np
 
 from src.calibration.extrinsics import LandmarkClicks
-from src.geometry.court import LANDMARKS
-
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_DIAGRAM_PATH = _REPO_ROOT / "media" / "court-diagram.drawio.png"
+from src.geometry.court import LANDMARKS, WORLD_LANDMARKS_MM
+from src.visualization.minimap import make_base_canvas, world_to_px
 
 # Header strip stacked above the camera frame; the click callback subtracts
 # this to translate window→camera coordinates.
@@ -32,125 +29,28 @@ _DIAGRAM_INSET_MARGIN = 20
 _GREEN = (0, 255, 0)
 _RED = (0, 0, 255)
 _BLUE = (255, 0, 0)
-_GREEN_RGBA = (0, 255, 0, 255)
-_RED_RGBA = (0, 0, 255, 255)
-_BLUE_RGBA = (255, 0, 0, 255)
 
 PickerStatus = Literal["done", "quit"]
 
 
-# Normalized [0, 1] coordinates on the court-diagram PNG, used to render the
-# next-target highlight in the click picker. Values are arbitrary visual hints —
-# the **label** is what tells the user which physical point to click.
-_LANDMARK_DIAGRAM_NORM: dict[str, tuple[float, float]] = {
-    # Court corners (4)
-    "corner_left_bench":   (0.020, 0.900),
-    "corner_right_bench":  (0.980, 0.900),
-    "corner_left_stands":  (0.020, 0.150),
-    "corner_right_stands": (0.980, 0.150),
-
-    # Center line (4)
-    "center_circle_bench":   (0.500, 0.615),
-    "center_circle_stands":  (0.500, 0.435),
-    "center_line_bench":     (0.500, 0.900),
-    "center_line_stands":    (0.500, 0.150),
-
-    # Free-throw lane anchors (8)
-    "lane_left_endline_bench":   (0.020, 0.615),
-    "lane_left_ft_bench":        (0.205, 0.615),
-    "lane_left_endline_stands":  (0.020, 0.455),
-    "lane_left_ft_stands":       (0.205, 0.455),
-    "lane_right_endline_bench":  (0.980, 0.615),
-    "lane_right_ft_bench":       (0.790, 0.615),
-    "lane_right_endline_stands": (0.980, 0.455),
-    "lane_right_ft_stands":      (0.790, 0.455),
-
-    # Hoops + floor-below anchors (4)
-    "hoop_left_rim":          (0.065, 0.520),
-    "floor_under_hoop_left":  (0.065, 0.520),
-    "hoop_right_rim":         (0.930, 0.520),
-    "floor_under_hoop_right": (0.930, 0.520),
-
-    # Three-point arcs (6)
-    "three_pt_left_endline_bench":   (0.020, 0.840),
-    "three_pt_left_apex":            (0.300, 0.510),
-    "three_pt_left_endline_stands":  (0.020, 0.220),
-    "three_pt_right_endline_bench":  (0.980, 0.840),
-    "three_pt_right_apex":           (0.700, 0.510),
-    "three_pt_right_endline_stands": (0.980, 0.220),
-
-    # Backboard outer corners (8). Top vs. bottom is invisible in this top-down
-    # inset, so the (norm_x, norm_y) offsets are just disambiguation hints —
-    # the label tells the user which corner to click.
-    "backboard_left_top_bench":      (0.055, 0.555),
-    "backboard_left_top_stands":     (0.055, 0.485),
-    "backboard_left_bottom_bench":   (0.075, 0.555),
-    "backboard_left_bottom_stands":  (0.075, 0.485),
-    "backboard_right_top_bench":     (0.945, 0.555),
-    "backboard_right_top_stands":    (0.945, 0.485),
-    "backboard_right_bottom_bench":  (0.925, 0.555),
-    "backboard_right_bottom_stands": (0.925, 0.485),
-}
-
-# Drift guard: every world landmark must have a diagram coord, and vice-versa.
-assert set(_LANDMARK_DIAGRAM_NORM) == set(LANDMARKS), (
-    "_LANDMARK_DIAGRAM_NORM keys must match LANDMARKS exactly. "
-    f"Missing: {set(LANDMARKS) - set(_LANDMARK_DIAGRAM_NORM)}, "
-    f"extra: {set(_LANDMARK_DIAGRAM_NORM) - set(LANDMARKS)}"
-)
-
-
-@functools.lru_cache(maxsize=1)
-def _load_diagram_inset(width: int = _DIAGRAM_INSET_WIDTH) -> np.ndarray:
-    """Load the transparent court-diagram PNG, resized to `width` (RGBA preserved)."""
-    if not _DIAGRAM_PATH.exists():
-        raise FileNotFoundError(f"Court diagram image not found: {_DIAGRAM_PATH}")
-    diagram = cv2.imread(str(_DIAGRAM_PATH), cv2.IMREAD_UNCHANGED)
-    if diagram is None:
-        raise RuntimeError(f"OpenCV failed to decode {_DIAGRAM_PATH}")
-    if diagram.ndim != 3 or diagram.shape[2] != 4:
-        raise RuntimeError(f"Expected an RGBA PNG, got shape {diagram.shape}")
-    h0, w0 = diagram.shape[:2]
-    scale = width / w0
-    return cv2.resize(diagram, (width, max(1, int(round(h0 * scale)))))
-
-
-def _alpha_composite(canvas: np.ndarray, rgba: np.ndarray, top_left: tuple[int, int]) -> None:
-    """Alpha-blend an RGBA image onto a BGR canvas in place."""
-    x0, y0 = top_left
-    h, w = rgba.shape[:2]
-    roi = canvas[y0:y0 + h, x0:x0 + w].astype(np.float32)
-    alpha = rgba[..., 3:4].astype(np.float32) / 255.0
-    rgb = rgba[..., :3].astype(np.float32)
-    canvas[y0:y0 + h, x0:x0 + w] = (alpha * rgb + (1.0 - alpha) * roi).astype(np.uint8)
-
-
-def _diagram_pixel(label: str, inset_w: int, inset_h: int) -> tuple[int, int] | None:
-    """Pixel coordinates of `label` on the inset, or None for unknown labels."""
-    norm = _LANDMARK_DIAGRAM_NORM.get(label)
-    if norm is None:
-        return None
-    nx, ny = norm
-    return int(round(nx * inset_w)), int(round(ny * inset_h))
-
-
-def _draw_diagram_dot(
-    inset: np.ndarray,
-    label: str,
-    color: tuple[int, int, int, int],
-    radius: int = 4,
-    ordinal: int | None = None,
-) -> None:
-    """Place a colored dot on the diagram inset for `label`, with an optional ordinal label."""
-    ih, iw = inset.shape[:2]
-    target = _diagram_pixel(label, iw, ih)
-    if target is None:
-        return
-    cv2.circle(inset, target, radius, color, thickness=-1)
-    if ordinal is not None:
-        cv2.putText(inset, f"#{ordinal}",
-                    (target[0] + radius + 2, target[1] - 2),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, color, 1, cv2.LINE_AA)
+def _make_diagram_inset(clicks: LandmarkClicks, next_index: int) -> np.ndarray:
+    """Render a procedural court minimap with landmark state dots, resized to inset width."""
+    canvas = make_base_canvas()
+    for i, label in enumerate(LANDMARKS):
+        x_mm, y_mm, _ = WORLD_LANDMARKS_MM[label]
+        px, py = world_to_px(x_mm, y_mm)
+        click = clicks.get(label)
+        if click is not None:
+            cv2.circle(canvas, (px, py), 6, _GREEN, -1)
+            cv2.putText(canvas, f"#{i + 1}", (px + 8, py - 4),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, _GREEN, 1, cv2.LINE_AA)
+        elif i == next_index:
+            cv2.circle(canvas, (px, py), 6, _BLUE, -1)
+        elif i < next_index:
+            cv2.circle(canvas, (px, py), 6, _RED, -1)
+    h, w = canvas.shape[:2]
+    scale = _DIAGRAM_INSET_WIDTH / w
+    return cv2.resize(canvas, (_DIAGRAM_INSET_WIDTH, int(round(h * scale))))
 
 
 def _draw_cam_dot(cam: np.ndarray, xy: tuple[int, int], ordinal: int) -> None:
@@ -182,25 +82,19 @@ def _render_overlay(
 ) -> np.ndarray:
     """Compose camera frame (with click markers), diagram inset progress map, and status bar."""
     cam = camera_frame_resized.copy()
-    diagram_inset = _load_diagram_inset().copy()
+
+    diagram_inset = _make_diagram_inset(clicks, next_index)
     ih, iw = diagram_inset.shape[:2]
-    inset_top_left = (
-        max(0, cam.shape[1] - iw - _DIAGRAM_INSET_MARGIN),
-        _STATUS_BAR_HEIGHT + _DIAGRAM_INSET_MARGIN,
-    )
+    x0 = max(0, cam.shape[1] - iw - _DIAGRAM_INSET_MARGIN)
+    y0 = _STATUS_BAR_HEIGHT + _DIAGRAM_INSET_MARGIN
+    cam[y0:y0 + ih, x0:x0 + iw] = diagram_inset
 
     for i, label in enumerate(LANDMARKS):
         click = clicks.get(label)
         if click is not None:
             ix, iy = click
             _draw_cam_dot(cam, (int(round(ix * scale)), int(round(iy * scale))), ordinal=i + 1)
-            _draw_diagram_dot(diagram_inset, label, _GREEN_RGBA, ordinal=i + 1)
-        elif i == next_index:
-            _draw_diagram_dot(diagram_inset, label, _BLUE_RGBA)
-        elif i < next_index:
-            _draw_diagram_dot(diagram_inset, label, _RED_RGBA)
 
-    _alpha_composite(cam, diagram_inset, inset_top_left)
     return np.vstack([_render_status_bar(cam.shape[1], cam.dtype, camera_id, next_index), cam])
 
 
