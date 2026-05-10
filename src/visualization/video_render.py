@@ -7,6 +7,9 @@ from src.visualization.drawing import draw_detections, draw_tracked_detections
 from src.visualization.minimap import canvas_size, draw_dot, make_base_canvas
 
 
+_INFO_COLOR = (200, 200, 200)
+
+
 def produce_detection_output_video(
     frames: list[cv2.Mat],
     detection_output: DetectionOutput,
@@ -69,6 +72,36 @@ def _render_minimap_frame(
         for point in triangulated.points:
             draw_dot(canvas, point)
     return canvas
+
+
+def produce_minimap_video(
+    triangulation: TriangulationOutput,
+    output_path: str,
+    fps: float | None = None,
+) -> None:
+    """Render the triangulated scene as a stand-alone top-down minimap MP4.
+
+    Each frame draws the FIBA court canvas plus team-coded dots for every
+    triangulated `Point3D`, with a `frame {idx}` caption in the upper left.
+
+    Parameters:
+        - triangulation: cross-camera triangulated points keyed by frame_index
+        - output_path: destination MP4 path
+        - fps: frame rate; falls back to triangulation.fps (or 25 if missing)
+    """
+    out_fps = fps if fps is not None else triangulation.fps
+    if out_fps <= 0:
+        out_fps = 25.0
+
+    base = make_base_canvas()
+    frames: list[cv2.Mat] = []
+    for triangulated in triangulation.frames:
+        canvas = _render_minimap_frame(base, triangulated)
+        cv2.putText(canvas, f"frame {triangulated.frame_index}", (10, 22),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, _INFO_COLOR, 1, cv2.LINE_AA)
+        frames.append(canvas)
+
+    save_video(frames, output_path, int(out_fps))
 
 
 def _overlay_minimap(
