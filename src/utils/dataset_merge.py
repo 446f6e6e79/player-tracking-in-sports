@@ -1,65 +1,38 @@
-import yaml
 from pathlib import Path
+import yaml
 
 
-def _load_names(cfg: dict) -> list:
-    names = cfg.get("names")
-    if not names:
-        raise ValueError("data.yaml is missing a non-empty `names` entry")
-    if isinstance(names, dict):
-        names = [names[k] for k in sorted(names, key=int)]
-    return list(names)
-
-
-def _resolve_split_dir(cfg: dict, yaml_path: Path, key: str):
-    split_val = cfg.get(key)
-    if split_val is None:
-        return None
-    base = Path(cfg["path"]) if "path" in cfg else yaml_path.parent
-    if not base.is_absolute():
-        base = (yaml_path.parent / base).resolve()
-    p = Path(split_val)
-    return p.resolve() if p.is_absolute() else (base / p).resolve()
-
-
-def merge_yolo_datasets(yaml_paths: list, output_yaml: str) -> Path:
-    yaml_paths = [Path(p) for p in yaml_paths]
-    if not yaml_paths:
-        raise ValueError("yaml_paths is empty")
-
+def merge_yolo_datasets(yaml_paths: list[str], output_dir: str) -> Path:
     configs = []
     for p in yaml_paths:
-        with p.open() as f:
-            cfg = yaml.safe_load(f)
-        configs.append((p, cfg, _load_names(cfg)))
+        with open(p) as f:
+            configs.append((Path(p).parent, yaml.safe_load(f)))
 
-    names = configs[0][2]
-    for p, _, n in configs[1:]:
-        if n != names:
-            raise ValueError(f"Class mismatch in {p}: {n} != {names}")
+    all_names: list[str] = []
+    seen: set[str] = set()
+    for _, cfg in configs:
+        for name in cfg.get("names", []):
+            if name not in seen:
+                all_names.append(name)
+                seen.add(name)
 
-    split_lists = {"train": [], "val": [], "test": []}
-    for p, cfg, _ in configs:
-        for key in ("train", "test"):
-            d = _resolve_split_dir(cfg, p, key)
-            if d is not None:
-                split_lists[key].append(str(d))
-        d = _resolve_split_dir(cfg, p, "val") or _resolve_split_dir(cfg, p, "valid")
-        if d is not None:
-            split_lists["val"].append(str(d))
+    train_dirs, val_dirs = [], []
+    for ds_root, cfg in configs:
+        for key, bucket in (("train", train_dirs), ("val", val_dirs)):
+            rel = cfg.get(key, f"images/{key}")
+            if Path(rel).is_absolute():
+                p = Path(rel)
+            else:
+                # Roboflow YAMLs emit e.g. '../train/images'; strip '..' to stay
+                # inside the dataset folder instead of traversing up to the parent.
+                clean = "/".join(part for part in Path(rel).parts if part != "..")
+                p = ds_root / clean
+            bucket.append(str(p))
 
-    output_yaml = Path(output_yaml)
-    output_yaml.parent.mkdir(parents=True, exist_ok=True)
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    merged_yaml = out / "data.yaml"
+    with open(merged_yaml, "w") as f:
+        yaml.dump({"train": train_dirs, "val": val_dirs, "nc": len(all_names), "names": all_names}, f)
 
-    merged = {
-        "path": str(output_yaml.parent.resolve()),
-        "nc": len(names),
-        "names": names,
-    }
-    for key in ("train", "val", "test"):
-        if split_lists[key]:
-            merged[key] = split_lists[key]
-
-    with output_yaml.open("w") as f:
-        yaml.safe_dump(merged, f, default_flow_style=False, sort_keys=False)
-    return output_yaml
+    return merged_yaml
