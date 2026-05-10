@@ -161,7 +161,6 @@ def main() -> None:
         print(f"Saving radar overlay video to {overlay_path}...")
         produce_radar_overlay_video(
             frames_color,
-            trackings[cam_a],
             triangulation,
             str(overlay_path),
         )

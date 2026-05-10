@@ -3,10 +3,10 @@ Run the optimal detection + tracking pipeline end-to-end on one camera.
 The Pipeline steps are:
     1. Open the camera's video, read frames.
     2. Two-pass YOLO with the fine-tuned model:
-       - player pass at default resolution (imgsz=640) (class_ids = every non-ball class)
-       - ball pass at imgsz=1280 with conf_threshold=0.1 (class_ids=[0])
+       - player pass at default resolution (imgsz=1280) (class_ids = every non-ball class)
+       - ball pass at imgsz=1600 with conf_threshold=0.2 (class_ids=[0])
     3. Merge the two passes into one DetectionOutput.
-    4. Class-independent NMS (iou=0.5) to collapse duplicate identity-coded boxes.
+    4. Class-independent NMS (iou=0.75) to collapse duplicate identity-coded boxes.
     5. DeepSORT (max_iou_distance=0.8, max_age=60, n_init=2).
     6. Resolve per-track labels (cumulative-confidence vote).
     7. Render the final tracking video. 
@@ -34,7 +34,6 @@ from src.types.detection import merge_detections
 from src.utils.video_io import get_frames, open_video
 from src.visualization.video_render import produce_tracking_output_video
 
-
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Run the optimal tracking pipeline on one camera.")
     p.add_argument("--camera", required=True, help="Camera id, e.g. cam_13.")
@@ -42,7 +41,7 @@ def parse_args() -> argparse.Namespace:
                    help="Directory containing the source videos.")
     p.add_argument("--output-dir", default="results",
                    help="Root directory for produced videos.")
-    p.add_argument("--model", default="models/fine_tuned_models/best.pt",
+    p.add_argument("--model", default="best.pt",
                    help="Path to the fine-tuned YOLO weights. If the file is missing, "
                         "best.pt is auto-downloaded from the Hugging Face repo.")
     p.add_argument("--max-frames", type=int, default=-1,
@@ -113,13 +112,14 @@ def main() -> None:
     print(f"Loaded {len(frames_color)} frames at {fps:.2f} fps from {video_path}")
 
     # 2. Two-pass YOLO
-    model = load_fine_tuned_yolo_model(args.model)
+    MODEL_PATH = Path(f"models/fine_tuned_models/{args.model}")
+    model = load_fine_tuned_yolo_model(MODEL_PATH)
     player_classes = list(range(1, len(model.names)))  # everything except ball (class 0)
 
     # Run the player pass
     print("Running player detection pass...")
     raw_player_results = run_yolo_detection(
-        model, frames_color, 
+        model, frames_color, inference_size=1280,
         class_ids=player_classes
     )
     print("Player detection pass completed.")
@@ -128,7 +128,7 @@ def main() -> None:
     # Run the ball pass
     raw_ball_results = run_yolo_detection(
         model, frames_color,
-        conf_threshold=0.1, inference_size=1280, class_ids=[0],
+        conf_threshold=0.2, inference_size=1600, class_ids=[0],
     )
     print("Ball detection pass completed.")
 
@@ -136,17 +136,17 @@ def main() -> None:
     print("Merging player and ball detections...")
     player_out = yolo_to_detection_output(
         raw_player_results, model,
-        camera_id=args.camera, fps=fps, source="yolo_v11m_pt",
+        camera_id=args.camera, fps=fps, source=args.model,
     )
     ball_out = yolo_to_detection_output(
         raw_ball_results, model,
-        camera_id=args.camera, fps=fps, source="yolo_v11m_pt",
+        camera_id=args.camera, fps=fps, source=args.model,
     )
     detection_output = merge_detections(player_out, ball_out)
 
     # 4. Class-independent NMS
     print("Applying class-independent NMS to merge duplicate boxes...")
-    detection_output = class_independent_nms(detection_output, iou_threshold=0.5)
+    detection_output = class_independent_nms(detection_output, iou_threshold=0.75)
 
     # Optional: save the detection video with boxes drawn but before tracking
     if args.save_detection_video:

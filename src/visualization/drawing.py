@@ -1,6 +1,20 @@
 import cv2
+import numpy as np
 
 from src.types.tracking import FrameDetections, FrameTrackedDetections
+
+
+def overlay_inset(
+    frame: np.ndarray,
+    inset: np.ndarray,
+    x0: int,
+    y0: int,
+    alpha: float,
+) -> None:
+    """Alpha-blend `inset` onto `frame` in-place at top-left position (x0, y0)."""
+    ih, iw = inset.shape[:2]
+    roi = frame[y0:y0 + ih, x0:x0 + iw]
+    frame[y0:y0 + ih, x0:x0 + iw] = cv2.addWeighted(inset, alpha, roi, 1.0 - alpha, 0)
 
 
 def text_color_for(bg_bgr: tuple[int, int, int]) -> tuple[int, int, int]:

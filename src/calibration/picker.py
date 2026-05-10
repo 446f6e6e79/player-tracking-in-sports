@@ -5,6 +5,7 @@ import numpy as np
 
 from src.calibration.extrinsics import LandmarkClicks
 from src.geometry.court import LANDMARKS, WORLD_LANDMARKS_MM
+from src.visualization.drawing import overlay_inset
 from src.visualization.minimap import canvas_size, make_base_canvas, world_to_px
 
 # Header strip stacked above the camera frame; the click callback subtracts
@@ -12,60 +13,54 @@ from src.visualization.minimap import canvas_size, make_base_canvas, world_to_px
 _STATUS_BAR_HEIGHT = 50
 _DIAGRAM_INSET_WIDTH = 320
 _DIAGRAM_INSET_MARGIN = 20
+_INSET_ALPHA = 0.70
 
 _GREEN = (0, 255, 0)
 _RED = (0, 0, 255)
 _BLUE = (255, 0, 0)
 
-# Output type for collect_clicks status: 
-# - "done" if user completed all clicks and confirmed 
+# Output type for collect_clicks status:
+# - "done" if user completed all clicks and confirmed
 # - "quit" if they aborted.
 PickerStatus = Literal["done", "quit"]
 
 
 @functools.lru_cache(maxsize=1)
 def _base_inset(width: int = _DIAGRAM_INSET_WIDTH) -> np.ndarray:
-    """Pre-scaled court canvas, computed once and reused each frame."""
-    full = make_base_canvas()
-    mw, mh = canvas_size()
-    return cv2.resize(full, (width, int(round(mh * width / mw))))
+    """Pre-scaled court canvas (zero margin), computed once and reused each frame."""
+    full = make_base_canvas(margin=0)
+    fh, fw = full.shape[:2]
+    return cv2.resize(full, (width, int(round(fh * width / fw))))
 
 
-def _inset_world_to_px(x_mm: float, y_mm: float, iw: int, ih: int) -> tuple[int, int]:
-    """Scale minimap world_to_px output to inset pixel dimensions."""
-    mw, mh = canvas_size()
-    mx, my = world_to_px(x_mm, y_mm)
-    return int(round(mx * iw / mw)), int(round(my * ih / mh))
+def _inset_world_to_px(x_mm: float, y_mm: float, iw: int) -> tuple[int, int]:
+    """Convert world mm → inset pixel coordinates using the zero-margin transform."""
+    mx, my = world_to_px(x_mm, y_mm, margin=0)
+    scale = iw / canvas_size(margin=0)[0]
+    return int(round(mx * scale)), int(round(my * scale))
 
 
 def _make_diagram_inset(clicks: LandmarkClicks, next_index: int) -> np.ndarray:
     """Copy the cached court base and overlay landmark state dots."""
-    # Get a fresh copy of the base court diagram to draw on
     canvas = _base_inset().copy()
-
     ih, iw = canvas.shape[:2]
-    # For each landmark, determine color and label
     for i, label in enumerate(LANDMARKS):
-        # Get the world coordinates of the landmark
         x_mm, y_mm, _ = WORLD_LANDMARKS_MM[label]
         click = clicks.get(label)
-        
-        # If the landmark has been clicked, show green dot + label
+
         if click is not None:
-            color, label = _GREEN, f"#{i + 1}"
-        # If it is the next one to click, show a blue dot and no label
+            color, dot_label = _GREEN, f"#{i + 1}"
         elif i == next_index:
-            color, label = _BLUE, None
-        # If it was skipped (user pressed 'n'), show a red dot and no label
+            color, dot_label = _BLUE, None
         elif i < next_index:
-            color, label = _RED, None
+            color, dot_label = _RED, None
         else:
             continue
-        # Convert world mm to inset pixels and draw the dot + optional label
-        px, py = _inset_world_to_px(x_mm, y_mm, iw, ih)
+
+        px, py = _inset_world_to_px(x_mm, y_mm, iw)
         cv2.circle(canvas, (px, py), 4, color, -1)
-        if label is not None:
-            cv2.putText(canvas, label, (px + 5, py - 3),
+        if dot_label is not None:
+            cv2.putText(canvas, dot_label, (px + 5, py - 3),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.3, color, 1, cv2.LINE_AA)
     return canvas
 
@@ -104,7 +99,7 @@ def _render_overlay(
     ih, iw = diagram_inset.shape[:2]
     x0 = max(0, cam.shape[1] - iw - _DIAGRAM_INSET_MARGIN)
     y0 = _STATUS_BAR_HEIGHT + _DIAGRAM_INSET_MARGIN
-    cam[y0:y0 + ih, x0:x0 + iw] = diagram_inset
+    overlay_inset(cam, diagram_inset, x0, y0, _INSET_ALPHA)
 
     for i, label in enumerate(LANDMARKS):
         click = clicks.get(label)
@@ -122,7 +117,7 @@ def collect_clicks(
 ) -> tuple[LandmarkClicks, PickerStatus]:
     """
     Loop to collect user clicks for each landmark, showing real-time feedback on the camera frame.
-    The user clicks the landmarks in order, allowing to undo with 'u' or skip with 'n'. 
+    The user clicks the landmarks in order, allowing to undo with 'u' or skip with 'n'.
     Once all landmarks are clicked, they can press Enter to confirm or 'q' to quit.
     Parameters:
         - camera_id: identifier for the camera (used in the window title and status bar)
@@ -144,14 +139,14 @@ def collect_clicks(
     def on_mouse(event, x, y, flags, param):
         """Mouse callback to record clicks. Only accepts left button down events, and ignores clicks in the header strip."""
         nonlocal index
-        # Skip if not left button 
+        # Skip if not left button
         if event != cv2.EVENT_LBUTTONDOWN:
             return
         if index >= len(LANDMARKS):
             return
         # click landed in the header strip, not the camera frame
         if y < _STATUS_BAR_HEIGHT:
-            return  
+            return
         # Get the current landmark label to click
         label = LANDMARKS[index]
         # Record the click coordinates, adjusting for the header strip and display scaling
@@ -169,25 +164,25 @@ def collect_clicks(
             # Render the overlay with the current clicks and instructions, and wait for key input
             cv2.imshow(window, _render_overlay(base_display, camera_id, clicks, index, scale))
             key = cv2.waitKey(20) & 0xFF
-            
+
             # Handle quit case
             if key == ord("q"):
                 return clicks, "quit"
-            
+
             # Handle skip case
             if key == ord("n") and index < len(LANDMARKS):
                 label = LANDMARKS[index]
                 clicks[label] = None
                 order.append(label)
                 index += 1
-            
+
             # Handle undo case
             if key == ord("u") and order:
                 last = order.pop()
                 clicks[last] = None
                 # Avoid going negative on index if user undoes at the start
                 index = max(0, index - 1)
-            
+
             # Handle confirm case
             if key in (13, 10) and index >= len(LANDMARKS):
                 return clicks, "done"
