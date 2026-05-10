@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 
-# --- Tracking evaluation metrics for a single camera view. ---
 
 @dataclass
 class DetectionMetrics:
@@ -91,10 +90,7 @@ class TrajectoryMetrics:
 
 @dataclass
 class GeometryMetrics:
-    """
-    Full set of SOTA geometry evaluation metrics for a single camera view, returned by evaluate_geometry().
-
-    """
+    """Full set of SOTA geometry evaluation metrics for a single camera view, returned by evaluate_geometry()."""
     reprojection: ReprojectionMetrics   # Standard reprojection-quality metrics computed in image space
     trajectory: TrajectoryMetrics       # Temporal trajectory evaluation metrics computed on trajectories over time after associating predicted tracks with GT trajectories
 

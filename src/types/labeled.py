@@ -1,12 +1,3 @@
-"""
-Mixin exposing team / number / color helpers for objects whose `class_name`
-encodes a fine-tuned label like 'Red_11', 'White_2', 'Refree_3', or 'Ball'.
-
-Single source of truth for the team-color palette: every Detection, RectifiedPoint,
-and Point3D inherits these properties so renderers do not re-parse class labels.
-"""
-
-# BGR colors for the four label groups produced by the fine-tuned model.
 _TEAM_COLORS_BGR = {
     "ball":     (0, 255, 255),    # yellow
     "red":      (0, 0, 255),      # red
@@ -28,8 +19,10 @@ def _split_label(class_name: str) -> tuple[str, str]:
 
 
 class LabeledObject:
-    """Mixin: subclasses must expose `class_name: str`. Properties only — no
-    fields, safe to mix into `@dataclass` types."""
+    """
+    Base class for labeled objects in our dataset, providing common parsing and properties.
+    Subclasses must provide a class_name field (e.g. "White_14", "Red_11", "Ball")
+    """
 
     class_name: str  # provided by subclass; declared for static analysis only
 

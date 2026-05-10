@@ -1,7 +1,8 @@
 import numpy as np
 
 from src.tracking.sort_components import AppearanceEncoder, DeepSortTracker
-from src.types.tracking import DetectionOutput, FrameTrackedDetections, TrackingOutput
+from src.types.detection import DetectionOutput
+from src.types.tracking import FrameTrackedDetections, TrackingOutput
 
 
 def apply_deep_sort(

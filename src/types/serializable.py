@@ -1,13 +1,3 @@
-"""
-Generic JSON read/write for dataclass trees.
-
-Subclass `JsonSerializable` to get `.write(path, overwrite=False)` and
-`.read(path)` for any `@dataclass` whose fields are JSON-friendly
-(scalars, strings, lists of those, or other dataclass instances /
-lists of dataclass instances). The receiving class is introspected via
-`dataclasses.fields()` + `typing.get_type_hints()`, so nested types are
-reconstructed automatically.
-"""
 import json
 import os
 from dataclasses import asdict, fields, is_dataclass
@@ -16,9 +6,12 @@ from typing import Any, Self, get_args, get_origin, get_type_hints
 
 
 class JsonSerializable:
-    """Mixin: JSON read/write for dataclass trees via field introspection."""
+    """
+    Base class for dataclasses that can be serialized to and from JSON files.
+    Subclasses must be decorated with @dataclass and contain only JSON-serializable fields (e.g. no custom objects or tuples)."""
 
     def write(self, path: str | Path, overwrite: bool = False) -> None:
+        """Write this object to a JSON file at the given path. By default, this method will refuse to overwrite an existing file."""
         path = str(path)
         if not overwrite and os.path.exists(path):
             raise FileExistsError(
@@ -30,6 +23,7 @@ class JsonSerializable:
 
     @classmethod
     def read(cls, path: str | Path) -> Self:
+        """Read an instance of this class from a JSON file at the given path."""
         path = str(path)
         if not os.path.exists(path):
             raise FileNotFoundError(f"{cls.__name__} file not found: {path}")
@@ -48,6 +42,7 @@ def _from_dict(cls: type, data: Any) -> Any:
 
 
 def _convert(target_type: Any, value: Any) -> Any:
+    """Recursively convert a value to the given target type, handling nested dataclasses and lists."""
     origin = get_origin(target_type)
     if origin is list:
         (item_type,) = get_args(target_type)

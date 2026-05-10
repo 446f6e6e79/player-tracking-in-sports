@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
+from src.types.detection import BoundingBox
 from src.types.tracking import (
-    BoundingBox,
     FrameTrackedDetections,
     TrackedDetection,
     TrackingOutput,
