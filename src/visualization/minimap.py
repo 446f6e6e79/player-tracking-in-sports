@@ -8,7 +8,7 @@ import numpy as np
 
 from src.geometry import court as cp
 from src.types.geometry import Point3D
-from src.utils.drawing import get_team_color_and_number, text_color_for
+from src.visualization.drawing import text_color_for
 
 
 # Layout: width-fit a 28 m court onto a 1120 px canvas with a 60 px margin
@@ -22,8 +22,14 @@ _MM_TO_PX = (_CANVAS_W - 2 * _MARGIN) / (28000.0 + 2 * _PADDING_MM)
 _BG_COLOR = (30, 30, 30)
 _COURT_COLOR = (200, 200, 200)
 _HOOP_COLOR = (0, 0, 255)
+_OUTLINE_COLOR = (0, 0, 0)
+_BALL_RING_COLOR = (255, 255, 255)
 _BALL_RADIUS = 8
+_BALL_RING_RADIUS = 10
 _PLAYER_RADIUS = 7
+_TRIANGLE_HALF_BASE = 8   # ~16 px wide
+_TRIANGLE_HEIGHT = 14
+_SQUARE_HALF_SIDE = 7     # ~14 px side
 
 
 def canvas_size() -> tuple[int, int]:
@@ -73,18 +79,72 @@ def draw_landmark_dots(
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1, cv2.LINE_AA)
 
 
-def draw_dot(canvas: np.ndarray, point: Point3D) -> None:
-    """Draw a single triangulated point: ball as a yellow dot, players as
-    team-colored dots with a black outline and the jersey number centered."""
-    color, number = get_team_color_and_number(point.class_name)
-    px, py = world_to_px(float(point.x), float(point.y))
-    if point.class_name.lower().startswith("ball"):
-        cv2.circle(canvas, (px, py), _BALL_RADIUS, color, -1, cv2.LINE_AA)
-        return
+def _draw_ball(canvas: np.ndarray, px: int, py: int) -> None:
+    """Yellow filled circle with a white outline ring."""
+    cv2.circle(canvas, (px, py), _BALL_RADIUS, (0, 255, 255), -1, cv2.LINE_AA)
+    cv2.circle(canvas, (px, py), _BALL_RING_RADIUS, _BALL_RING_COLOR, 1, cv2.LINE_AA)
+
+
+def _draw_circle(canvas: np.ndarray, px: int, py: int, color: tuple[int, int, int]) -> None:
+    """Filled circle with a black outline (referee + unknown labels)."""
     cv2.circle(canvas, (px, py), _PLAYER_RADIUS, color, -1, cv2.LINE_AA)
-    cv2.circle(canvas, (px, py), _PLAYER_RADIUS, (0, 0, 0), 1, cv2.LINE_AA)
+    cv2.circle(canvas, (px, py), _PLAYER_RADIUS, _OUTLINE_COLOR, 1, cv2.LINE_AA)
+
+
+def _draw_triangle(canvas: np.ndarray, px: int, py: int, color: tuple[int, int, int]) -> None:
+    """Downward-pointing filled triangle, centered on (px, py), with black outline."""
+    half_h = _TRIANGLE_HEIGHT // 2
+    pts = np.array([
+        [px - _TRIANGLE_HALF_BASE, py - half_h],
+        [px + _TRIANGLE_HALF_BASE, py - half_h],
+        [px,                       py + half_h],
+    ], dtype=np.int32)
+    cv2.fillPoly(canvas, [pts], color, cv2.LINE_AA)
+    cv2.polylines(canvas, [pts], True, _OUTLINE_COLOR, 1, cv2.LINE_AA)
+
+
+def _draw_square(canvas: np.ndarray, px: int, py: int, color: tuple[int, int, int]) -> None:
+    """Filled square centered on (px, py), with black outline."""
+    tl = (px - _SQUARE_HALF_SIDE, py - _SQUARE_HALF_SIDE)
+    br = (px + _SQUARE_HALF_SIDE, py + _SQUARE_HALF_SIDE)
+    cv2.rectangle(canvas, tl, br, color, -1, cv2.LINE_AA)
+    cv2.rectangle(canvas, tl, br, _OUTLINE_COLOR, 1, cv2.LINE_AA)
+
+
+def _draw_player_number(
+    canvas: np.ndarray,
+    px: int,
+    py: int,
+    number: str,
+    bg_color: tuple[int, int, int],
+) -> None:
+    """Render `number` centered on (px, py) with auto-contrast against bg_color."""
+    text_color = text_color_for(bg_color)
+    (tw, th), _ = cv2.getTextSize(number, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1)
+    cv2.putText(canvas, number, (px - tw // 2, py + th // 2),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.35, text_color, 1, cv2.LINE_AA)
+
+
+def draw_dot(canvas: np.ndarray, point: Point3D) -> None:
+    """Draw a single triangulated point on the minimap.
+
+    Shape per team: red ▲ triangle, white ■ square, referee/unknown ● circle,
+    ball as a yellow dot ringed in white. Players show their jersey number
+    centered on the shape with auto-contrast text color.
+    """
+    px, py = world_to_px(float(point.x), float(point.y))
+    if point.is_ball:
+        _draw_ball(canvas, px, py)
+        return
+
+    color = point.color
+    if point.team == "red":
+        _draw_triangle(canvas, px, py, color)
+    elif point.team == "white":
+        _draw_square(canvas, px, py, color)
+    else:  # referee, unknown
+        _draw_circle(canvas, px, py, color)
+
+    number = point.number
     if number:
-        text_color = text_color_for(color)
-        (tw, th), _ = cv2.getTextSize(number, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1)
-        cv2.putText(canvas, number, (px - tw // 2, py + th // 2),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, text_color, 1, cv2.LINE_AA)
+        _draw_player_number(canvas, px, py, number, color)

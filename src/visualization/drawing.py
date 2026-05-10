@@ -3,41 +3,6 @@ import cv2
 from src.types.tracking import FrameDetections, FrameTrackedDetections
 
 
-# BGR colors for the four label groups produced by the fine-tuned model.
-_TEAM_COLORS_BGR = {
-    "ball": (0, 255, 255),       # yellow
-    "red": (0, 0, 255),          # red
-    "white": (255, 255, 255),    # white
-    "referee": (0, 165, 255),    # orange
-}
-_FALLBACK_COLOR = (128, 128, 128)
-
-
-def get_team_color_and_number(class_name: str) -> tuple[tuple[int, int, int], str]:
-    """
-        Map a fine-tuned class label (e.g. 'Red_11', 'Refree_2', 'Ball') to a
-        (BGR color, jersey-number string).
-        Empty number means 'has no number' (used for Ball).
-        Unknown labels fall back to gray + the raw class_name.
-    """
-    parts = class_name.split("_", 1)
-
-    # Get the head of the class name (e.g. "Red)
-    head = parts[0].lower()
-    number = parts[1] if len(parts) == 2 else ""
-
-    if head == "ball":
-        return _TEAM_COLORS_BGR["ball"], ""
-    if head == "red":
-        return _TEAM_COLORS_BGR["red"], number
-    if head == "white":
-        return _TEAM_COLORS_BGR["white"], number
-    # The fine-tuned model spells it "Refree"; accept "Referee" too.
-    if head in ("refree", "referee"):
-        return _TEAM_COLORS_BGR["referee"], number
-    return _FALLBACK_COLOR, class_name
-
-
 def text_color_for(bg_bgr: tuple[int, int, int]) -> tuple[int, int, int]:
     """Pick black or white text for legibility against a colored background."""
     b, g, r = bg_bgr
@@ -106,7 +71,8 @@ def draw_tracked_detections(
     annotated = frame.copy()
     for detection in frame_detections.detections:
         x1, y1, x2, y2 = detection.get_int_bbox_tuple()
-        bbox_color, number = get_team_color_and_number(detection.class_name)
+        bbox_color = detection.color
+        number = detection.number
 
         # Draw the bounding box in the team color
         cv2.rectangle(annotated, (x1, y1), (x2, y2), bbox_color, 2)

@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from src.types.labeled import LabeledObject
 from src.types.serializable import JsonSerializable
 
 
@@ -19,7 +20,7 @@ class BoundingBox:
 
 
 @dataclass
-class Detection:
+class Detection(LabeledObject):
     """A single object detection in a frame, before tracking has run."""
     bbox: BoundingBox             # Bounding box coordinates (x1, y1, x2, y2)
     confidence: float             # Confidence score of the detection (0.0 to 1.0)

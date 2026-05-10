@@ -1,10 +1,11 @@
 from dataclasses import dataclass, field
 
+from src.types.labeled import LabeledObject
 from src.types.serializable import JsonSerializable
 
 
 @dataclass
-class RectifiedPoint:
+class RectifiedPoint(LabeledObject):
     """A single rectified bbox-center point in pixel coordinates."""
     x: float
     y: float
@@ -35,7 +36,7 @@ class RectifiedPointsOutput(JsonSerializable):
 
 
 @dataclass
-class Point3D:
+class Point3D(LabeledObject):
     """A single 3D point in world coordinates (mm), tagged with its class identity."""
     x: float
     y: float

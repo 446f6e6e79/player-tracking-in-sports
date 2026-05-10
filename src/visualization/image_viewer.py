@@ -2,7 +2,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.utils.drawing import draw_detections, draw_tracked_detections
+from src.visualization.drawing import draw_detections, draw_tracked_detections
 from src.types.tracking import DetectionOutput, FrameDetections, FrameTrackedDetections, TrackingOutput
 
 

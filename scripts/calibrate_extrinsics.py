@@ -17,12 +17,10 @@ import sys
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-import numpy as np
-
 from src.calibration.camera_data import CameraData
 from src.calibration.extrinsics import solve_camera_pose
 from src.calibration.picker import collect_clicks
-from src.utils.video_io import get_frames, open_video
+from src.utils.video_io import load_first_frame
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,25 +34,13 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def _load_first_frame(camera_id: str, input_dir: Path) -> np.ndarray:
-    """Load the first frame of the given camera's video."""
-    path = input_dir / (camera_id.replace("cam_", "out") + ".mp4")
-    cap = open_video(str(path))
-    try:
-        frames, _ = get_frames(cap, max_frames=1)
-    finally:
-        cap.release()
-    if not frames:
-        raise RuntimeError(f"Could not read any frame from {path}")
-    return frames[0]
-
-
 def main() -> None:
     args = parse_args()
-    
+
     # Load the camera parameters from disk
     cam = CameraData.load(args.camera)
-    frame = _load_first_frame(args.camera, Path(args.input_dir))
+    video_path = Path(args.input_dir) / (args.camera.replace("cam_", "out") + ".mp4")
+    frame = load_first_frame(video_path)
 
     print(f"\n=== Click landmarks in {args.camera} ===")
     # Collect 2D-3D correspondences via user clicks

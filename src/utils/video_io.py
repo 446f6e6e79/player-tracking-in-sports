@@ -1,5 +1,8 @@
 import os
+from pathlib import Path
+
 import cv2
+import numpy as np
 
 
 def open_video(video_path: str) -> cv2.VideoCapture:
@@ -53,6 +56,21 @@ def get_frames(
             frames_gray.append(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
         count += 1
     return frames_color, frames_gray
+
+
+def load_first_frame(video_path: str | Path) -> np.ndarray:
+    """Read and return the first frame of a video as a BGR ndarray.
+
+    Raises RuntimeError if the video opens but yields no frames.
+    """
+    cap = open_video(str(video_path))
+    try:
+        frames, _ = get_frames(cap, max_frames=1)
+    finally:
+        cap.release()
+    if not frames:
+        raise RuntimeError(f"Could not read any frame from {video_path}")
+    return frames[0]
 
 
 def save_video(
