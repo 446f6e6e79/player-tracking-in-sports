@@ -1,74 +1,65 @@
-import shutil
 import yaml
 from pathlib import Path
 
-def merge_yolo_datasets(
-    yaml_paths: list, 
-    output_dir: str = "merged_dataset"
-) -> Path:
-    output_dir = Path(output_dir)
-    datasets = []
-    
-    # Load all dataset configs and check for class consistency
-    for i, p in enumerate(map(Path, yaml_paths)):
+
+def _load_names(cfg: dict) -> list:
+    names = cfg.get("names")
+    if not names:
+        raise ValueError("data.yaml is missing a non-empty `names` entry")
+    if isinstance(names, dict):
+        names = [names[k] for k in sorted(names, key=int)]
+    return list(names)
+
+
+def _resolve_split_dir(cfg: dict, yaml_path: Path, key: str):
+    split_val = cfg.get(key)
+    if split_val is None:
+        return None
+    base = Path(cfg["path"]) if "path" in cfg else yaml_path.parent
+    if not base.is_absolute():
+        base = (yaml_path.parent / base).resolve()
+    p = Path(split_val)
+    return p.resolve() if p.is_absolute() else (base / p).resolve()
+
+
+def merge_yolo_datasets(yaml_paths: list, output_yaml: str) -> Path:
+    yaml_paths = [Path(p) for p in yaml_paths]
+    if not yaml_paths:
+        raise ValueError("yaml_paths is empty")
+
+    configs = []
+    for p in yaml_paths:
         with p.open() as f:
-            config = yaml.safe_load(f)
-        
-        # Check that all datasets have the same class names (YOLO format)
-        if datasets and datasets[0]['config'].get('names') != config.get('names'):
-            raise ValueError(f"Class mismatch in {p}")
-        
-        # Store the dataset info for merging; we'll need the root to resolve relative paths
-        datasets.append({
-            'config': config,
-            'root': p.parent,
-            'id': i
-        })
+            cfg = yaml.safe_load(f)
+        configs.append((p, cfg, _load_names(cfg)))
 
-    # Use the class names from the first dataset
-    names = datasets[0]['config'].get('names', {})
-    splits = ['train', 'val', 'test']
+    names = configs[0][2]
+    for p, _, n in configs[1:]:
+        if n != names:
+            raise ValueError(f"Class mismatch in {p}: {n} != {names}")
 
-    for split in splits:
-        img_out = output_dir / "images" / split
-        lbl_out = output_dir / "labels" / split
-        img_out.mkdir(parents=True, exist_ok=True)
-        lbl_out.mkdir(parents=True, exist_ok=True)
+    split_lists = {"train": [], "val": [], "test": []}
+    for p, cfg, _ in configs:
+        for key in ("train", "test"):
+            d = _resolve_split_dir(cfg, p, key)
+            if d is not None:
+                split_lists[key].append(str(d))
+        d = _resolve_split_dir(cfg, p, "val") or _resolve_split_dir(cfg, p, "valid")
+        if d is not None:
+            split_lists["val"].append(str(d))
 
-        # If no dataset has this split, we can skip it (e.g. no test set)
-        for dataset in datasets:
-            if split not in dataset['config']:
-                continue
-            
-            # Resolve paths relative to the dataset YAML location
-            src_img_dir = (dataset['root'] / dataset['config'][split]).resolve()
-            src_lbl_dir = src_img_dir.parents[1] / "labels" / src_img_dir.name
+    output_yaml = Path(output_yaml)
+    output_yaml.parent.mkdir(parents=True, exist_ok=True)
 
-            # Copy images and labels, prefixing filenames with dataset ID to avoid collisions
-            for img in src_img_dir.glob("*"):
-                if not img.is_file(): continue
-                
-                # Prefix the image filename with the dataset ID to ensure uniqueness across datasets
-                unique_name = f"ds{dataset['id']}_{img.name}"
-                shutil.copy2(img, img_out / unique_name)
-
-                # Copy the corresponding label file if it exists, using the same unique prefix
-                lbl = src_lbl_dir / f"{img.stem}.txt"
-                if lbl.exists():
-                    shutil.copy2(lbl, lbl_out / f"{Path(unique_name).stem}.txt")
-
-    # Final YAML configuration
-    merged_config = {
-        "path": str(output_dir.resolve()),
-        "train": "images/train",
-        "val": "images/val",
-        "test": "images/test",
+    merged = {
+        "path": str(output_yaml.parent.resolve()),
         "nc": len(names),
-        "names": names
+        "names": names,
     }
+    for key in ("train", "val", "test"):
+        if split_lists[key]:
+            merged[key] = split_lists[key]
 
-    merged_yaml = output_dir / "data.yaml"
-    with merged_yaml.open("w") as f:
-        yaml.dump(merged_config, f, default_flow_style=False)
-
-    return merged_yaml
+    with output_yaml.open("w") as f:
+        yaml.safe_dump(merged, f, default_flow_style=False, sort_keys=False)
+    return output_yaml
