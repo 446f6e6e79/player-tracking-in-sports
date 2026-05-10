@@ -15,7 +15,7 @@ def merge_yolo_datasets(
             config = yaml.safe_load(f)
         
         # Check that all datasets have the same class names (YOLO format)
-        if datasets and datasets[0]['names'] != config.get('names'):
+        if datasets and datasets[0]['config'].get('names') != config.get('names'):
             raise ValueError(f"Class mismatch in {p}")
         
         # Store the dataset info for merging; we'll need the root to resolve relative paths
