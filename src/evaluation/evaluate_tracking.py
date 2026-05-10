@@ -13,12 +13,11 @@ from src.types.evaluation import (
     IdentityMetrics,
 )
 from src.types.tracking import TrackingOutput
-from src.evaluation.evaluate_detection import compute_detection_metrics
+
+
 
 # Create a metrics handler
 _MH = mm.metrics.create()
-
-
 
 def compute_identity_metrics(acc: mm.MOTAccumulator) -> IdentityMetrics:
     """Derive IDF1 family metrics from a populated MOTAccumulator.

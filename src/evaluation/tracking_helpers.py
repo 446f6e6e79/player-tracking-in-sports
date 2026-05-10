@@ -8,7 +8,8 @@ if not hasattr(np, "asfarray"):
 
 import motmetrics as mm
 
-from src.types.tracking import Detection, DetectionOutput, TrackingOutput, dets_to_xywh
+from src.types.tracking import Detection, TrackingOutput
+from src.types.detection import DetectionOutput, dets_to_xywh
 
 
 def _iter_frame_pairs(

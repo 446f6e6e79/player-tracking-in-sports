@@ -3,7 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from src.visualization.drawing import draw_detections, draw_tracked_detections
-from src.types.tracking import DetectionOutput, FrameDetections, FrameTrackedDetections, TrackingOutput
+from src.types.tracking import FrameDetections, FrameTrackedDetections, TrackingOutput
+from src.types.detection import DetectionOutput
 
 
 def show_image(

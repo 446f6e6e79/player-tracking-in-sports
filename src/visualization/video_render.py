@@ -1,7 +1,8 @@
 import cv2
 
 from src.types.geometry import FrameTriangulatedPoints, TriangulationOutput
-from src.types.tracking import DetectionOutput, TrackingOutput
+from src.types.tracking import TrackingOutput
+from src.types.detection import DetectionOutput
 from src.utils.video_io import save_video
 from src.visualization.drawing import draw_detections, draw_tracked_detections
 from src.visualization.minimap import canvas_size, draw_dot, make_base_canvas
