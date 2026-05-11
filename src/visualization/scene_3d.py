@@ -73,15 +73,20 @@ def _configure_axes(ax: Axes3D) -> None:
     ax.set_xlim(*_X_LIMITS_M)
     ax.set_ylim(*_Y_LIMITS_M)
     ax.set_zlim(*_Z_LIMITS_M)
-    ax.set_xlabel("X (m)")
-    ax.set_ylabel("Y (m)")
-    ax.set_zlabel("Z (m)")
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    ax.set_zlabel("")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_zticks([])
+    ax.grid(False)
     ax.set_box_aspect((
         _X_LIMITS_M[1] - _X_LIMITS_M[0],
         _Y_LIMITS_M[1] - _Y_LIMITS_M[0],
         _Z_LIMITS_M[1] - _Z_LIMITS_M[0],
     ))
     ax.view_init(elev=22, azim=-60)
+    ax.set_axis_off()
 
 
 def show_3d_scene_frames(

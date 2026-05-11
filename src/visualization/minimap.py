@@ -24,12 +24,12 @@ _COURT_COLOR = (200, 200, 200)
 _HOOP_COLOR = (0, 0, 255)
 _OUTLINE_COLOR = (0, 0, 0)
 _BALL_RING_COLOR = (255, 255, 255)
-_BALL_RADIUS = 8
-_BALL_RING_RADIUS = 10
-_PLAYER_RADIUS = 7
-_TRIANGLE_HALF_BASE = 8   # ~16 px wide
-_TRIANGLE_HEIGHT = 14
-_SQUARE_HALF_SIDE = 7     # ~14 px side
+_BALL_RADIUS = 16
+_BALL_RING_RADIUS = 20
+_PLAYER_RADIUS = 14
+_TRIANGLE_HALF_BASE = 16  
+_TRIANGLE_HEIGHT = 28
+_SQUARE_HALF_SIDE = 14     
 
 
 def _mm_to_px_scale(margin: int) -> float:
@@ -134,9 +134,9 @@ def _draw_player_number(
 ) -> None:
     """Render `number` centered on (px, py) with auto-contrast against bg_color."""
     text_color = text_color_for(bg_color)
-    (tw, th), _ = cv2.getTextSize(number, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1)
+    (tw, th), _ = cv2.getTextSize(number, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
     cv2.putText(canvas, number, (px - tw // 2, py + th // 2),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.35, text_color, 1, cv2.LINE_AA)
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, text_color, 2, cv2.LINE_AA)
 
 
 def draw_dot(canvas: np.ndarray, point: Point3D, margin: int = _MARGIN) -> None:

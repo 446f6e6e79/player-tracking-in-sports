@@ -46,14 +46,19 @@ def _triangulate_point(
     """
     pts = np.asarray(points_2d, dtype=np.float64).reshape(-1, 2)
     Ps = np.asarray(projection_matrices, dtype=np.float64).reshape(-1, 3, 4)
+    # Get the number of views (M)
     M = pts.shape[0]
+    # Build the linear system A of shape (2M, 4)
     A = np.zeros((2 * M, 4), dtype=np.float64)
     for i in range(M):
         x, y = pts[i]
         P = Ps[i]
         A[2 * i] = x * P[2] - P[0]
         A[2 * i + 1] = y * P[2] - P[1]
+    
+    # Solve for the null space of A using SVD (Singular Value Decomposition)
     _, _, Vt = np.linalg.svd(A)
+    # The solution is the last column of V (or last row of Vt), corresponding to the smallest singular value
     X_h = Vt[-1]
     return (X_h[:3] / X_h[3]).astype(np.float32)
 
@@ -151,33 +156,3 @@ def project_points(world_points: np.ndarray, cam: CameraData) -> np.ndarray:
         np.zeros_like(cam.dist),
     )
     return image_points.reshape(-1, 2)
-
-
-def project_triangulation(
-    triangulation: TriangulationOutput,
-    cam: CameraData,
-) -> dict[int, list[RectifiedPoint]]:
-    """
-    Project all 3D points from `triangulation` into `cam`'s pixel space.
-    Returns frame_index → list[RectifiedPoint], preserving point order within
-    each frame (matches `triangulation.frames[*].points`).
-    """
-    index: dict[int, list[RectifiedPoint]] = {}
-    # Build an index of annotated points by frame for easy lookup.
-    for frame in triangulation.frames:
-        # Project all 3D points in the frame into pixel space using the camera parameters.
-        world_pts = np.array([[p.x, p.y, p.z] for p in frame.points], dtype=np.float32)
-        pixels    = project_points(world_pts, cam)
-        # For each projected point, create a corresponding RectifiedPoint with the same class_id and class_name
-        index[frame.frame_index] = [
-            RectifiedPoint(
-                x          = float(pixels[i, 0]),
-                y          = float(pixels[i, 1]),
-                confidence = 1.0,
-                class_id   = getattr(pt, "class_id", -1),
-                class_name = pt.class_name,
-                track_id   = -1,
-            )
-            for i, pt in enumerate(frame.points)
-        ]
-    return index

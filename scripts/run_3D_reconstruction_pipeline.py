@@ -24,6 +24,7 @@ import cv2
 
 from src.calibration.camera_data import CameraData
 from src.geometry.rectification import rectify_tracking_output
+from src.geometry.smoothing import smooth_triangulation
 from src.geometry.triangulation import triangulate_rectified_outputs
 from src.paths import CameraPaths, ReconstructionPaths, preflight_output_paths
 from src.types.tracking import TrackingOutput
@@ -111,6 +112,8 @@ def main() -> None:
         f"Triangulated {len(triangulation.frames)} frames across "
         f"{triangulation.camera_ids}"
     )
+    print("Smoothing 3D tracks with forward Kalman filter...")
+    triangulation = smooth_triangulation(triangulation)
 
     # 4. Persist the triangulation output (JSON)
     print(f"Writing triangulation output to {recon.triangulation_json}...")
