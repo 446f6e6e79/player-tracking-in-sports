@@ -73,6 +73,10 @@ class DeepSortTracker:
         if detections:
             boxes = np.asarray([d.get_bbox_tuple() for d in detections], dtype=float)
             features = self.encoder(frame, boxes)
+            # Zero out features for "Ball" class to prevent them from interfering with player matching
+            for i, d in enumerate(detections):
+                if d.class_name == "Ball":
+                    features[i] = 1.0 / features.shape[1] ** 0.5
         else:
             features = np.empty((0, self.encoder.EMBED_DIM), dtype=np.float32)
 

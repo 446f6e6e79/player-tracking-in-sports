@@ -78,7 +78,7 @@ def main() -> None:
     # Set up the output directory for this camera
     video_out_dir = Path(args.output_dir) / "tracking" / args.camera
     video_out_dir.mkdir(parents=True, exist_ok=True)
-    serialized_track_out_dir = video_out_dir / "serialized" / args.camera
+    serialized_track_out_dir = video_out_dir / "serialized"
     serialized_track_out_dir.mkdir(parents=True, exist_ok=True)
 
     # Build paths to script outputs
@@ -158,8 +158,8 @@ def main() -> None:
     tracking_output = apply_deep_sort(
         detection_output,
         frames=frames_color,
-        max_iou_distance=0.8,
-        max_age=60,
+        max_iou_distance=0.7,
+        max_age=30,
         n_init=2,
     )
     print("DeepSORT tracking completed.")

@@ -41,6 +41,11 @@ def _iou_cost(
         # Get the predicted bounding box for the track in (x1, y1, x2, y2) format
         track_box = np.asarray(tracks[track_index].predicted_xyxy(), dtype=float)
         cost[row] = 1.0 - iou(track_box, det_boxes)
+        # Set cost to 1.0 for any pairs of track and detection that have different classes
+        track_class = tracks[track_index].last_detection.class_id
+        for col, di in enumerate(detection_indices):
+            if detections[di].class_id != track_class:
+                cost[row, col] = 1.0
     return cost
 
 
