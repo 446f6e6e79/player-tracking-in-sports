@@ -1,9 +1,9 @@
 """
-Run the 3D reconstruction pipeline end-to-end on a pair of cameras.
+Run the 3D reconstruction pipeline end-to-end on three cameras.
 The pipeline steps are:
     1. Load each camera's tracking JSON.
     2. Rectify bbox-center points using the camera intrinsics.
-    3. Triangulate per-class points across both cameras into a TriangulationOutput.
+    3. Triangulate per-class points across all cameras into a TriangulationOutput.
     4. Persist triangulation.json (always).
     5. Optional renders: top-down minimap MP4, FIFA-style radar overlay on
        camera A's source video, and a 3D matplotlib animation MP4.
@@ -36,10 +36,10 @@ from src.visualization.video_render import (
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Run the 3D reconstruction pipeline on a pair of cameras."
+        description="Run the 3D reconstruction pipeline on three cameras."
     )
-    p.add_argument("--cameras", nargs=2, required=True, metavar=("CAM_A", "CAM_B"),
-                   help="Exactly two camera ids, e.g. --cameras cam_4 cam_13.")
+    p.add_argument("--cameras", nargs=3, required=True, metavar=("CAM_A", "CAM_B", "CAM_C"),
+                   help="Exactly three camera ids, e.g. --cameras cam_4 cam_13 cam_2.")
     p.add_argument("--input-dir", default="data/videos",
                    help="Directory containing the source videos (used by --overlay-video).")
     p.add_argument("--tracking-dir", default="results/tracking",
@@ -82,14 +82,14 @@ def tracking_json_for(camera: str, tracking_dir: Path) -> Path:
 
 def main() -> None:
     args = parse_args()
-    cam_a, cam_b = args.cameras
-    print(f"Running 3D reconstruction pipeline for cameras {cam_a}, {cam_b}...")
+    cam_a, cam_b, cam_c = args.cameras
+    print(f"Running 3D reconstruction pipeline for cameras {cam_a}, {cam_b}, {cam_c}...")
 
     input_dir = Path(args.input_dir)
     tracking_dir = Path(args.tracking_dir)
 
-    # Set up the output directory for this camera pair
-    pair_dir = Path(args.output_dir) / "reconstruction" / f"{cam_a}__{cam_b}"
+    # Set up the output directory for this camera set
+    pair_dir = Path(args.output_dir) / "reconstruction" / f"{cam_a}__{cam_b}__{cam_c}"
     pair_dir.mkdir(parents=True, exist_ok=True)
     serialized_dir = pair_dir / "serialized"
     serialized_dir.mkdir(parents=True, exist_ok=True)
@@ -111,10 +111,10 @@ def main() -> None:
     # Check for existing outputs before doing any expensive compute, to avoid overwriting results
     _preflight_output_paths(output_paths_to_check, args.force)
 
-    # 1. Load tracking JSONs and camera calibrations for both cameras
+    # 1. Load tracking JSONs and camera calibrations for all cameras
     cameras: dict[str, CameraData] = {}
     trackings: dict[str, TrackingOutput] = {}
-    for cam_id in (cam_a, cam_b):
+    for cam_id in (cam_a, cam_b, cam_c):
         json_path = tracking_json_for(cam_id, tracking_dir)
         if not json_path.exists():
             raise FileNotFoundError(f"Tracking JSON not found: {json_path}")
