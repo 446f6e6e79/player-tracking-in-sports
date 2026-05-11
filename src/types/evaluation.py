@@ -45,3 +45,45 @@ class TrackingMetrics:
     identity: IdentityMetrics   # ID-level metrics (IDF1 family) over the whole sequence
     hota: HOTAMetrics           # Higher Order Tracking Accuracy (Luiten et al., IJCV 2021) with scalar averages and per-alpha breakdowns
 
+
+# --- Geometry evaluation metrics for a single camera view. ---
+
+@dataclass
+class ReprojectionMetrics:
+    """
+    Standard reprojection-quality metrics computed in image space.
+    Predicted 3D points are projected into the camera image plane and
+    compared against GT annotated 2D positions.
+    """
+    mean_error_px: float              # Mean reprojection error (pixels)
+    median_error_px: float            # Median reprojection error (pixels)
+    std_error_px: float               # Standard deviation of reprojection error
+    rmse_px: float                    # Root Mean Squared reprojection error
+
+    accuracy_at_5px: float            # Fraction of projections with error < 5 px
+    accuracy_at_10px: float           # Fraction of projections with error < 10 px
+    accuracy_at_20px: float           # Fraction of projections with error < 20 px
+
+@dataclass
+class TrajectoryMetrics:
+    """
+    Temporal trajectory evaluation metrics.
+
+    Computed on trajectories over time after associating predicted tracks
+    with GT trajectories.
+    """
+    ade_px: float                     # Average Displacement Error
+    fde_px: float                     # Final Displacement Error
+    mte_px: float                     # Median Trajectory Error
+
+    total_trajectories: int           # Number of evaluated trajectories
+    trajectory_fragments: int         # Number of interrupted trajectories
+
+
+@dataclass
+class GeometryMetrics:
+    """Full set of SOTA geometry evaluation metrics for a single camera view, returned by evaluate_geometry()."""
+    reprojection: ReprojectionMetrics   # Standard reprojection-quality metrics computed in image space
+    trajectory: TrajectoryMetrics       # Temporal trajectory evaluation metrics computed on trajectories over time after associating predicted tracks with GT trajectories
+
+

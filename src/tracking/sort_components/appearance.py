@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from src.paths.model_paths import OSNET_WEIGHTS_PATH
 from src.tracking.sort_components.osnet import (
     osnet_x0_25,
     osnet_x0_5,
@@ -14,9 +15,7 @@ from src.tracking.sort_components.osnet import (
     osnet_ibn_x1_0,
 )
 
-# Default variables for AppearanceEncoder.
 # The weights file is not included in the repo due to size, but can be downloaded from the official OSNet model zoo.
-DEFAULT_WEIGHTS_PATH = Path("models/osnet_x1_0_msmt17.pt")
 DEFAULT_MODEL_NAME = "osnet_x1_0"
 
 # Vendored OSNet variants — same factory signatures as torchreid.models.
@@ -86,7 +85,7 @@ class AppearanceEncoder:
 
     def __init__(
         self,
-        weights_path: str | Path = DEFAULT_WEIGHTS_PATH,
+        weights_path: str | Path = OSNET_WEIGHTS_PATH,
         model_name: str = DEFAULT_MODEL_NAME,
         device: str | torch.device | None = None,
         input_size: tuple[int, int] = (256, 128),  # OSNet's training resolution (H, W)

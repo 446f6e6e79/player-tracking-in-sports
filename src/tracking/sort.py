@@ -1,5 +1,6 @@
 from src.tracking.sort_components import SortTracker
-from src.types.tracking import DetectionOutput, FrameTrackedDetections, TrackingOutput
+from src.types.detection import DetectionOutput
+from src.types.tracking import FrameTrackedDetections, TrackingOutput
 
 
 def apply_sort(

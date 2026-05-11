@@ -1,44 +1,23 @@
 import cv2
+import numpy as np
 
 from src.types.tracking import FrameDetections, FrameTrackedDetections
 
 
-# BGR colors for the four label groups produced by the fine-tuned model.
-_TEAM_COLORS_BGR = {
-    "ball": (0, 255, 255),       # yellow
-    "red": (0, 0, 255),          # red
-    "white": (255, 255, 255),    # white
-    "referee": (0, 165, 255),    # orange
-}
-_FALLBACK_COLOR = (128, 128, 128)
+def overlay_inset(
+    frame: np.ndarray,
+    inset: np.ndarray,
+    x0: int,
+    y0: int,
+    alpha: float,
+) -> None:
+    """Alpha-blend `inset` onto `frame` in-place at top-left position (x0, y0)."""
+    ih, iw = inset.shape[:2]
+    roi = frame[y0:y0 + ih, x0:x0 + iw]
+    frame[y0:y0 + ih, x0:x0 + iw] = cv2.addWeighted(inset, alpha, roi, 1.0 - alpha, 0)
 
 
-def _get_team_color_and_number(class_name: str) -> tuple[tuple[int, int, int], str]:
-    """
-        Map a fine-tuned class label (e.g. 'Red_11', 'Refree_2', 'Ball') to a
-        (BGR color, jersey-number string).
-        Empty number means 'has no number' (used for Ball).
-        Unknown labels fall back to gray + the raw class_name.
-    """
-    parts = class_name.split("_", 1)
-
-    # Get the head of the class name (e.g. "Red)
-    head = parts[0].lower()
-    number = parts[1] if len(parts) == 2 else ""
-
-    if head == "ball":
-        return _TEAM_COLORS_BGR["ball"], ""
-    if head == "red":
-        return _TEAM_COLORS_BGR["red"], number
-    if head == "white":
-        return _TEAM_COLORS_BGR["white"], number
-    # The fine-tuned model spells it "Refree"; accept "Referee" too.
-    if head in ("refree", "referee"):
-        return _TEAM_COLORS_BGR["referee"], number
-    return _FALLBACK_COLOR, class_name
-
-
-def _text_color_for(bg_bgr: tuple[int, int, int]) -> tuple[int, int, int]:
+def text_color_for(bg_bgr: tuple[int, int, int]) -> tuple[int, int, int]:
     """Pick black or white text for legibility against a colored background."""
     b, g, r = bg_bgr
     # Use the ITU-R BT.601 formula to compute perceived luminance from the BGR color.
@@ -59,7 +38,7 @@ def _draw_caption(
     (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
     cv2.rectangle(frame, (x, y - th - 6), (x + tw + 4, y), bg_color, -1)
     cv2.putText(frame, text, (x + 2, y - 4),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, _text_color_for(bg_color), 1, cv2.LINE_AA)
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color_for(bg_color), 1, cv2.LINE_AA)
 
 
 def draw_detections(
@@ -106,7 +85,8 @@ def draw_tracked_detections(
     annotated = frame.copy()
     for detection in frame_detections.detections:
         x1, y1, x2, y2 = detection.get_int_bbox_tuple()
-        bbox_color, number = _get_team_color_and_number(detection.class_name)
+        bbox_color = detection.color
+        number = detection.number
 
         # Draw the bounding box in the team color
         cv2.rectangle(annotated, (x1, y1), (x2, y2), bbox_color, 2)

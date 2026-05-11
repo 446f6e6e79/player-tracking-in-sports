@@ -1,7 +1,8 @@
 from ultralytics import YOLO
 import time
 
-from src.types.tracking import BoundingBox, Detection, DetectionOutput, FrameDetections
+from src.types.tracking import Detection, FrameDetections
+from src.types.detection import DetectionOutput, BoundingBox
 
 
 def run_yolo_detection(

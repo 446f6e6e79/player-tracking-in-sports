@@ -1,7 +1,8 @@
 import numpy as np
 
 from src.utils.iou import iou
-from src.types.tracking import Detection, DetectionOutput, FrameDetections
+from src.types.tracking import Detection, FrameDetections
+from src.types.detection import DetectionOutput
 
 
 def class_independent_nms(
