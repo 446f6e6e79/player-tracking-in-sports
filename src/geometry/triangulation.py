@@ -5,6 +5,7 @@ from src.calibration.camera_data import CameraData
 from src.types.geometry import (
     FrameTriangulatedPoints,
     Point3D,
+    RectifiedPoint,
     RectifiedPointsOutput,
     TriangulationOutput,
 )
@@ -135,3 +136,48 @@ def triangulate_rectified_outputs(
         camera_ids=camera_ids,
         frames=triangulated_frames,
     )
+
+
+def project_points(world_points: np.ndarray, cam: CameraData) -> np.ndarray:
+    """
+    Project (N, 3) world-frame points into the pixel space of `cam`.
+    Distortion coefficients are zeroed out — inputs are pre-rectified.
+    """
+    image_points, _ = cv2.projectPoints(
+        world_points,
+        cam.rvec,
+        cam.tvec,
+        cam.mtx,
+        np.zeros_like(cam.dist),
+    )
+    return image_points.reshape(-1, 2)
+
+
+def project_triangulation(
+    triangulation: TriangulationOutput,
+    cam: CameraData,
+) -> dict[int, list[RectifiedPoint]]:
+    """
+    Project all 3D points from `triangulation` into `cam`'s pixel space.
+    Returns frame_index → list[RectifiedPoint], preserving point order within
+    each frame (matches `triangulation.frames[*].points`).
+    """
+    index: dict[int, list[RectifiedPoint]] = {}
+    # Build an index of annotated points by frame for easy lookup.
+    for frame in triangulation.frames:
+        # Project all 3D points in the frame into pixel space using the camera parameters.
+        world_pts = np.array([[p.x, p.y, p.z] for p in frame.points], dtype=np.float32)
+        pixels    = project_points(world_pts, cam)
+        # For each projected point, create a corresponding RectifiedPoint with the same class_id and class_name
+        index[frame.frame_index] = [
+            RectifiedPoint(
+                x          = float(pixels[i, 0]),
+                y          = float(pixels[i, 1]),
+                confidence = 1.0,
+                class_id   = getattr(pt, "class_id", -1),
+                class_name = pt.class_name,
+                track_id   = -1,
+            )
+            for i, pt in enumerate(frame.points)
+        ]
+    return index

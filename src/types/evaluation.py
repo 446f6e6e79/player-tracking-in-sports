@@ -60,14 +60,9 @@ class ReprojectionMetrics:
     std_error_px: float               # Standard deviation of reprojection error
     rmse_px: float                    # Root Mean Squared reprojection error
 
-    accuracy_at_2px: float            # Percentage of projections with error < 2 px
-    accuracy_at_5px: float            # Percentage of projections with error < 5 px
-    accuracy_at_10px: float           # Percentage of projections with error < 10 px
-
-    tp: int                # Number of matched GT/prediction pairs
-    fp: int                # Number of false positives (predicted points without GT match)
-    fn: int                # Number of false negatives (GT points without prediction match)
-
+    accuracy_at_5px: float            # Fraction of projections with error < 5 px
+    accuracy_at_10px: float           # Fraction of projections with error < 10 px
+    accuracy_at_20px: float           # Fraction of projections with error < 20 px
 
 @dataclass
 class TrajectoryMetrics:
@@ -80,9 +75,6 @@ class TrajectoryMetrics:
     ade_px: float                     # Average Displacement Error
     fde_px: float                     # Final Displacement Error
     mte_px: float                     # Median Trajectory Error
-
-    trajectory_smoothness_px: float   # Average frame-to-frame displacement variation
-    jitter_px: float                  # High-frequency trajectory instability
 
     total_trajectories: int           # Number of evaluated trajectories
     trajectory_fragments: int         # Number of interrupted trajectories
