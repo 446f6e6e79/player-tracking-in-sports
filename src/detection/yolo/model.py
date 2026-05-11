@@ -15,7 +15,10 @@ def load_fine_tuned_yolo_model(model_path: str | Path | None = None) -> YOLO:
     Parameters:
         - model_path (str | Path): expected local path to the weights file
     """
-    model_path = _ensure_default_model(model_path)
+    # If no path is provided, ensure the default model is available
+    if model_path is None:
+        model_path = _ensure_default_model()
+
     print(f"Model ready at {model_path}. Loading into memory...")
     return YOLO(model_path)
 

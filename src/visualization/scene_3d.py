@@ -5,9 +5,8 @@ Mirrors the minimap visual language (team colors, court lines) but in a true
 """
 from __future__ import annotations
 
+import numpy as np
 import matplotlib
-
-matplotlib.use("Agg")  # no display needed; we write straight to MP4
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegWriter, FuncAnimation
@@ -85,6 +84,38 @@ def _configure_axes(ax: Axes3D) -> None:
     ax.view_init(elev=22, azim=-60)
 
 
+def show_3d_scene_frames(
+    triangulation: TriangulationOutput,
+    *,
+    n: int | None = None,
+    indexes: list[int] | None = None,
+) -> None:
+    """Display a selection of frames from a TriangulationOutput as 3D subplots.
+    Parameters:
+        - triangulation: TriangulationOutput to inspect.
+        - n: number of evenly-spaced frames to show.
+        - indexes: explicit list of positions in triangulation.frames to show.
+    """
+    frames = triangulation.frames
+    if indexes is not None:
+        selected = [frames[i] for i in indexes]
+    elif n is not None:
+        idxs = np.linspace(0, len(frames) - 1, n, dtype=int).tolist()
+        selected = [frames[i] for i in idxs]
+    else:
+        selected = [frames[0], frames[len(frames) // 2], frames[-1]]
+
+    fig = plt.figure(figsize=(9 * len(selected), 6))
+    for i, frame in enumerate(selected):
+        ax = fig.add_subplot(1, len(selected), i + 1, projection="3d")
+        _configure_axes(ax)
+        _draw_court_floor(ax)
+        _scatter_frame(ax, frame)
+        ax.set_title(f"Frame {frame.frame_index}")
+    plt.tight_layout()
+    plt.show()
+
+
 def produce_3d_scene_video(
     triangulation: TriangulationOutput,
     output_path: str,
@@ -100,6 +131,9 @@ def produce_3d_scene_video(
     out_fps = fps if fps is not None else triangulation.fps
     if out_fps <= 0:
         out_fps = 25.0
+
+    original_backend = matplotlib.get_backend()
+    plt.switch_backend("Agg")
 
     fig = plt.figure(figsize=(10, 6))
     ax: Axes3D = fig.add_subplot(111, projection="3d")
@@ -124,4 +158,5 @@ def produce_3d_scene_video(
         anim.save(output_path, writer=writer)
     finally:
         plt.close(fig)
+        plt.switch_backend(original_backend)
     print(f"Video saved successfully at: {output_path}")
