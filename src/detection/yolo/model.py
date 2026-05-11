@@ -2,10 +2,11 @@ from pathlib import Path
 from huggingface_hub import hf_hub_download
 from ultralytics import YOLO
 
-# Hugging Face repo where the fine-tuned YOLOv11m basketball weights are published.
-HF_REPO_ID = "446f6e6e79/YOLO-basketball-fineTuned"
-DEFAULT_FILENAME = "best.pt"
-DEFAULT_LOCAL_DIR = Path("models/fine_tuned_models")
+from src.paths.model_paths import (
+    HF_REPO_ID,
+    YOLO_DEFAULT_FILENAME,
+    YOLO_DEFAULT_PATH,
+)
 
 
 def load_fine_tuned_yolo_model(model_path: str | Path | None = None) -> YOLO:
@@ -25,7 +26,7 @@ def load_fine_tuned_yolo_model(model_path: str | Path | None = None) -> YOLO:
 def _download_model_from_huggingface(
     local_dir: str | Path,
     repo_id: str = HF_REPO_ID,
-    filename: str = DEFAULT_FILENAME,
+    filename: str = YOLO_DEFAULT_FILENAME,
 ) -> Path:
     """
     Download a single weight file from a Hugging Face model repo.
@@ -51,7 +52,7 @@ def _download_model_from_huggingface(
 
 
 def _ensure_default_model(
-    model_path: str | Path = DEFAULT_LOCAL_DIR / DEFAULT_FILENAME
+    model_path: str | Path = YOLO_DEFAULT_PATH
 ) -> Path:
     """
     Return `model_path` if it already exists on disk; otherwise download the
@@ -68,6 +69,6 @@ def _ensure_default_model(
 
     print(f"Model not found at {model_path}; fetching default from {HF_REPO_ID}.")
     return _download_model_from_huggingface(
-        filename=DEFAULT_FILENAME,
+        filename=YOLO_DEFAULT_FILENAME,
         local_dir=model_path.parent,
     )

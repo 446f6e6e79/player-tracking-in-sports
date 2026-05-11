@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import numpy as np
 
-DEFAULT_CAMERA_DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "camera_data"
+from src.paths.defaults import DEFAULT_CAMERA_DATA_DIR
 
 # Frozen dataclass preventing accidental mutation of loaded camera data, and providing a single source of truth for JSON paths and load/save logic.
 @dataclass(frozen=True)

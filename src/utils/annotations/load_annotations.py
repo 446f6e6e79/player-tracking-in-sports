@@ -1,6 +1,6 @@
 import json
-from pathlib import Path
 
+from src.paths.camera_paths import CameraPaths, DEFAULT_ANNOTATIONS_VERSION
 from src.types.detection import BoundingBox
 from src.types.tracking import (
     FrameTrackedDetections,
@@ -9,7 +9,7 @@ from src.types.tracking import (
 )
 
 
-def load_annotations(camera_id: str, version: str = "tracking_01") -> TrackingOutput:
+def load_annotations(camera_id: str, version: str = DEFAULT_ANNOTATIONS_VERSION) -> TrackingOutput:
     """Load ground-truth processed annotations for a single camera from disk.
     Annotations are stored as JSON files matching the post-tracking schema; the
     on-disk file may not include `track_id`, so we synthesize a stable id per
@@ -23,8 +23,7 @@ def load_annotations(camera_id: str, version: str = "tracking_01") -> TrackingOu
         TrackingOutput populated with ground-truth detections.
         Frame indices are normalized to 0-based at download time by process_coco_annotations.py.
     """
-    project_root = Path(__file__).parent.parent.parent.parent
-    path = project_root / "data" / "annotations" / version / f"{camera_id}.json"
+    path = CameraPaths.for_camera(camera_id).annotation_path(version)
     with open(path) as f:
         data = json.load(f)
 

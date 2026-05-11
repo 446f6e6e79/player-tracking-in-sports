@@ -25,6 +25,7 @@ import cv2
 from src.calibration.camera_data import CameraData
 from src.geometry.rectification import rectify_tracking_output
 from src.geometry.triangulation import triangulate_rectified_outputs
+from src.paths import CameraPaths, ReconstructionPaths, preflight_output_paths
 from src.types.tracking import TrackingOutput
 from src.utils.video_io import get_frames, open_video
 from src.visualization.scene_3d import produce_3d_scene_video
@@ -40,12 +41,8 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--cameras", nargs=3, required=True, metavar=("CAM_A", "CAM_B", "CAM_C"),
                    help="Exactly three camera ids, e.g. --cameras cam_4 cam_13 cam_2.")
-    p.add_argument("--input-dir", default="data/videos",
-                   help="Directory containing the source videos (used by --overlay-video).")
-    p.add_argument("--tracking-dir", default="results/tracking",
-                   help="Root holding {camera}/serialized/{camera}/tracking.json.")
-    p.add_argument("--output-dir", default="results",
-                   help="Root directory for produced artifacts.")
+    p.add_argument("--output-dir", default=None,
+                   help="Root directory for results; must match --output-dir used for run_2D_pipeline.py.")
     p.add_argument("--render-minimap", action="store_true",
                    help="Also render a stand-alone top-down minimap MP4.")
     p.add_argument("--overlay-video", action="store_true",
@@ -60,62 +57,40 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def _preflight_output_paths(paths: list[Path], force: bool) -> None:
-    """Validate all output paths up front so we fail before expensive compute."""
-    for path in paths:
-        if path.exists() and not force:
-            raise FileExistsError(
-                f"Refusing to overwrite existing file: {path}. Pass --force to replace it."
-            )
-
-
-def video_path_for(camera: str, input_dir: Path) -> Path:
-    """Given a camera id like 'cam_13', return the expected path to its source video within `input_dir`."""
-    num = camera.split("_", 1)[1]
-    return input_dir / f"out{num}.mp4"
-
-
-def tracking_json_for(camera: str, tracking_dir: Path) -> Path:
-    """Path to a camera's tracking JSON inside the 2D-pipeline output layout."""
-    return tracking_dir / camera / "serialized" / camera / "tracking.json"
-
-
 def main() -> None:
     args = parse_args()
     cam_a, cam_b, cam_c = args.cameras
     print(f"Running 3D reconstruction pipeline for cameras {cam_a}, {cam_b}, {cam_c}...")
 
-    input_dir = Path(args.input_dir)
-    tracking_dir = Path(args.tracking_dir)
+    # Set up paths for each camera and the overall reconstruction outputs
+    cam_paths = {
+        cam_id: CameraPaths.for_camera(cam_id, results_dir=args.output_dir)
+        for cam_id in (cam_a, cam_b, cam_c)
+    }
+    
+    # Ensure all required camera tracking JSONs exist before doing any expensive compute
+    recon = ReconstructionPaths.for_cameras(
+        (cam_a, cam_b, cam_c),
+        results_dir=args.output_dir,
+    )
+    recon.mkdir()
 
-    # Set up the output directory for this camera set
-    pair_dir = Path(args.output_dir) / "reconstruction" / f"{cam_a}__{cam_b}__{cam_c}"
-    pair_dir.mkdir(parents=True, exist_ok=True)
-    serialized_dir = pair_dir / "serialized"
-    serialized_dir.mkdir(parents=True, exist_ok=True)
-
-    # Build paths to script outputs
-    triangulation_json_path = serialized_dir / "triangulation.json"
-    minimap_path = pair_dir / "minimap.mp4"
-    overlay_path = pair_dir / "overlay.mp4"
-    scene_3d_path = pair_dir / "scene_3d.mp4"
-
-    output_paths_to_check: list[Path] = [triangulation_json_path]
+    output_paths_to_check: list[Path] = [recon.triangulation_json]
     if args.render_minimap:
-        output_paths_to_check.append(minimap_path)
+        output_paths_to_check.append(recon.minimap_video)
     if args.overlay_video:
-        output_paths_to_check.append(overlay_path)
+        output_paths_to_check.append(recon.overlay_video)
     if args.render_3d_graph:
-        output_paths_to_check.append(scene_3d_path)
+        output_paths_to_check.append(recon.scene_3d_video)
 
     # Check for existing outputs before doing any expensive compute, to avoid overwriting results
-    _preflight_output_paths(output_paths_to_check, args.force)
+    preflight_output_paths(output_paths_to_check, args.force)
 
     # 1. Load tracking JSONs and camera calibrations for all cameras
     cameras: dict[str, CameraData] = {}
     trackings: dict[str, TrackingOutput] = {}
     for cam_id in (cam_a, cam_b, cam_c):
-        json_path = tracking_json_for(cam_id, tracking_dir)
+        json_path = cam_paths[cam_id].tracking_json
         if not json_path.exists():
             raise FileNotFoundError(f"Tracking JSON not found: {json_path}")
         cameras[cam_id] = CameraData.load(cam_id)
@@ -138,36 +113,36 @@ def main() -> None:
     )
 
     # 4. Persist the triangulation output (JSON)
-    print(f"Writing triangulation output to {triangulation_json_path}...")
-    triangulation.write(str(triangulation_json_path), overwrite=args.force)
+    print(f"Writing triangulation output to {recon.triangulation_json}...")
+    triangulation.write(str(recon.triangulation_json), overwrite=args.force)
 
     # 5. Optional renders
     if args.render_minimap:
-        print(f"Saving top-down minimap video to {minimap_path}...")
-        produce_minimap_video(triangulation, str(minimap_path))
+        print(f"Saving top-down minimap video to {recon.minimap_video}...")
+        produce_minimap_video(triangulation, str(recon.minimap_video))
 
     if args.overlay_video:
-        video_path = video_path_for(cam_a, input_dir)
-        if not video_path.exists():
-            raise FileNotFoundError(f"Video not found: {video_path}")
-        print(f"Loading {cam_a} frames from {video_path} for radar overlay...")
-        cap = open_video(str(video_path))
+        overlay_source = cam_paths[cam_a].video
+        if not overlay_source.exists():
+            raise FileNotFoundError(f"Video not found: {overlay_source}")
+        print(f"Loading {cam_a} frames from {overlay_source} for radar overlay...")
+        cap = open_video(str(overlay_source))
         max_frames = None if args.max_frames < 0 else args.max_frames
         frames_color, _ = get_frames(cap, max_frames=max_frames)
         fps = cap.get(cv2.CAP_PROP_FPS)
         cap.release()
         print(f"Loaded {len(frames_color)} frames at {fps:.2f} fps")
 
-        print(f"Saving radar overlay video to {overlay_path}...")
+        print(f"Saving radar overlay video to {recon.overlay_video}...")
         produce_radar_overlay_video(
             frames_color,
             triangulation,
-            str(overlay_path),
+            str(recon.overlay_video),
         )
 
     if args.render_3d_graph:
-        print(f"Saving 3D scene animation to {scene_3d_path}...")
-        produce_3d_scene_video(triangulation, str(scene_3d_path))
+        print(f"Saving 3D scene animation to {recon.scene_3d_video}...")
+        produce_3d_scene_video(triangulation, str(recon.scene_3d_video))
 
 
 if __name__ == "__main__":

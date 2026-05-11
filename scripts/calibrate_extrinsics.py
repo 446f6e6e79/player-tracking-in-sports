@@ -20,6 +20,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from src.calibration.camera_data import CameraData
 from src.calibration.extrinsics import solve_camera_pose
 from src.calibration.picker import collect_clicks
+from src.paths import CameraPaths
 from src.utils.video_io import load_first_frame
 
 
@@ -27,7 +28,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Single-camera extrinsics calibration via solvePnP.")
     p.add_argument("--camera", required=True, 
                    help="Camera id to calibrate (e.g. cam_2, cam_4, cam_13).")
-    p.add_argument("--input-dir", default="data/videos",
+    p.add_argument("--input-dir", default=None,
                    help="Directory containing the source videos (outN.mp4).")
     p.add_argument("--display-max-dim", type=int, default=1280,
                    help="Longest side of the click window in pixels.")
@@ -39,8 +40,8 @@ def main() -> None:
 
     # Load the camera parameters from disk
     cam = CameraData.load(args.camera)
-    video_path = Path(args.input_dir) / (args.camera.replace("cam_", "out") + ".mp4")
-    frame = load_first_frame(video_path)
+    paths = CameraPaths.for_camera(args.camera, videos_input_dir=args.input_dir)
+    frame = load_first_frame(paths.video)
 
     print(f"\n=== Click landmarks in {args.camera} ===")
     # Collect 2D-3D correspondences via user clicks

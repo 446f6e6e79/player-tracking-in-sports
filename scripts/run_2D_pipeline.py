@@ -28,6 +28,8 @@ import cv2
 from src.detection.nms import class_independent_nms
 from src.detection.yolo.detection import run_yolo_detection, yolo_to_detection_output
 from src.detection.yolo.model import load_fine_tuned_yolo_model
+from src.paths import CameraPaths, preflight_output_paths
+from src.paths.model_paths import YOLO_FINE_TUNED_DIR
 from src.tracking.deep_sort import apply_deep_sort
 from src.tracking.label_resolution import resolve_track_labels
 from src.types.detection import merge_detections
@@ -37,9 +39,9 @@ from src.visualization.video_render import produce_tracking_output_video
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Run the optimal tracking pipeline on one camera.")
     p.add_argument("--camera", required=True, help="Camera id, e.g. cam_13.")
-    p.add_argument("--input-dir", default="data/videos",
+    p.add_argument("--input-dir", default=None,
                    help="Directory containing the source videos.")
-    p.add_argument("--output-dir", default="results",
+    p.add_argument("--output-dir", default=None,
                    help="Root directory for produced videos.")
     p.add_argument("--model", default="best.pt",
                    help="Path to the fine-tuned YOLO weights. If the file is missing, "
@@ -54,65 +56,40 @@ def parse_args() -> argparse.Namespace:
                    help="Overwrite existing pipeline outputs instead of failing.")
     return p.parse_args()
 
-def _preflight_output_paths(paths: list[Path], force: bool) -> None:
-    """Validate all output paths up front so we fail before expensive compute."""
-    for path in paths:
-        if path.exists() and not force:
-            raise FileExistsError(
-                f"Refusing to overwrite existing file: {path}. Pass --force to replace it."
-            )
-
-
-def video_path_for(camera: str, input_dir: Path) -> Path:
-    """Given a camera id like 'cam_13', return the expected path to its source video within `input_dir`."""
-    num = camera.split("_", 1)[1]
-    return input_dir / f"out{num}.mp4"
-
-
 def main() -> None:
     args = parse_args()
     print(f"Running 2D pipeline for camera {args.camera} with model {args.model}...")
 
-    input_dir = Path(args.input_dir)
-    
-    # Set up the output directory for this camera
-    video_out_dir = Path(args.output_dir) / "tracking" / args.camera
-    video_out_dir.mkdir(parents=True, exist_ok=True)
-    serialized_track_out_dir = video_out_dir / "serialized"
-    serialized_track_out_dir.mkdir(parents=True, exist_ok=True)
+    paths = CameraPaths.for_camera(
+        args.camera,
+        videos_input_dir=args.input_dir,
+        results_dir=args.output_dir,
+    )
+    paths.mkdir()
 
-    # Build paths to script outputs
-    final_video_path = video_out_dir / "tracking_resolved.mp4"
-    final_json_path = serialized_track_out_dir / "tracking.json"
-    output_paths_to_check = [final_video_path, final_json_path]
-    
-    # Optional intermediate videos
+    output_paths_to_check = [paths.tracking_video, paths.tracking_json]
     if args.save_detection_video:
-        detection_video_path = video_out_dir / "detection.mp4"
-        output_paths_to_check.append(detection_video_path)
-    
+        output_paths_to_check.append(paths.detection_video)
     if args.save_tracking_video:
-        tracking_video_path = video_out_dir / "tracking_pre_resolution.mp4"
-        output_paths_to_check.append(tracking_video_path)
+        output_paths_to_check.append(paths.pre_resolution_video)
 
     # Check for existing outputs before doing any expensive compute, to avoid overwriting results
-    _preflight_output_paths(output_paths_to_check, args.force)
+    preflight_output_paths(output_paths_to_check, args.force)
 
     # Verify the input video exists
-    video_path = video_path_for(args.camera, input_dir)
-    if not video_path.exists():
-        raise FileNotFoundError(f"Video not found: {video_path}")
+    if not paths.video.exists():
+        raise FileNotFoundError(f"Video not found: {paths.video}")
 
     # 1. Open video, read frames, get fps
-    cap = open_video(str(video_path))
+    cap = open_video(str(paths.video))
     max_frames = None if args.max_frames < 0 else args.max_frames
     frames_color, _ = get_frames(cap, max_frames=max_frames)
     fps = cap.get(cv2.CAP_PROP_FPS)
     cap.release()
-    print(f"Loaded {len(frames_color)} frames at {fps:.2f} fps from {video_path}")
+    print(f"Loaded {len(frames_color)} frames at {fps:.2f} fps from {paths.video}")
 
     # 2. Two-pass YOLO
-    MODEL_PATH = Path(f"models/fine_tuned_models/{args.model}")
+    MODEL_PATH = YOLO_FINE_TUNED_DIR / args.model
     model = load_fine_tuned_yolo_model(MODEL_PATH)
     player_classes = list(range(1, len(model.names)))  # everything except ball (class 0)
 
@@ -151,7 +128,7 @@ def main() -> None:
     # Optional: save the detection video with boxes drawn but before tracking
     if args.save_detection_video:
         print("Saving detection video...")
-        produce_tracking_output_video(frames_color, detection_output, str(detection_video_path))
+        produce_tracking_output_video(frames_color, detection_output, str(paths.detection_video))
 
     # 5. DeepSORT
     print("Applying DeepSORT...")
@@ -166,18 +143,18 @@ def main() -> None:
 
     if args.save_tracking_video:
         print("Saving tracking video before label resolution...")
-        produce_tracking_output_video(frames_color, tracking_output, str(tracking_video_path))
+        produce_tracking_output_video(frames_color, tracking_output, str(paths.pre_resolution_video))
 
     # 6. Resolve labels
     print("Resolving track labels...")
     resolved_output = resolve_track_labels(tracking_output)
 
     # 7. Persist the resolved tracking output (JSON) and render the final video
-    print(f"Writing resolved tracking output to {final_json_path}...")
-    resolved_output.write(str(final_json_path), overwrite=args.force)
+    print(f"Writing resolved tracking output to {paths.tracking_json}...")
+    resolved_output.write(str(paths.tracking_json), overwrite=args.force)
 
-    print(f"Saving final tracking video with resolved labels to {final_video_path}...")
-    produce_tracking_output_video(frames_color, resolved_output, str(final_video_path))
+    print(f"Saving final tracking video with resolved labels to {paths.tracking_video}...")
+    produce_tracking_output_video(frames_color, resolved_output, str(paths.tracking_video))
 
 if __name__ == "__main__":
     main()
