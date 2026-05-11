@@ -18,6 +18,10 @@ _INSET_ALPHA = 0.70
 _GREEN = (0, 255, 0)
 _RED = (0, 0, 255)
 _BLUE = (255, 0, 0)
+_LABEL_COLOR = (230, 230, 230)
+_LABEL_FONT_SCALE = 0.4
+_LABEL_THICKNESS = 1
+_LABEL_OFFSET_MM = 600.0
 
 # Output type for collect_clicks status:
 # - "done" if user completed all clicks and confirmed
@@ -44,6 +48,9 @@ def _make_diagram_inset(clicks: LandmarkClicks, next_index: int) -> np.ndarray:
     """Copy the cached court base and overlay landmark state dots."""
     canvas = _base_inset().copy()
     ih, iw = canvas.shape[:2]
+
+    _draw_side_labels(canvas, iw)
+
     for i, label in enumerate(LANDMARKS):
         x_mm, y_mm, _ = WORLD_LANDMARKS_MM[label]
         click = clicks.get(label)
@@ -60,9 +67,42 @@ def _make_diagram_inset(clicks: LandmarkClicks, next_index: int) -> np.ndarray:
         px, py = _inset_world_to_px(x_mm, y_mm, iw)
         cv2.circle(canvas, (px, py), 4, color, -1)
         if dot_label is not None:
-            cv2.putText(canvas, dot_label, (px + 5, py - 3),
+            (tw, th), _ = cv2.getTextSize(dot_label, cv2.FONT_HERSHEY_SIMPLEX, 0.3, 1)
+            label_x = px + 5
+            if label_x + tw >= iw - 2:
+                label_x = px - 5 - tw
+            label_y = py - 3
+            label_y = max(th + 1, min(label_y, ih - 2))
+            cv2.putText(canvas, dot_label, (label_x, label_y),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.3, color, 1, cv2.LINE_AA)
     return canvas
+
+
+def _draw_side_labels(canvas: np.ndarray, inset_width: int) -> None:
+    """Render LEFT/RIGHT/BENCH/STANDS labels near the court edges."""
+    ih, iw = canvas.shape[:2]
+    labels = (
+        ("LEFT", -14000.0 - _LABEL_OFFSET_MM, 0.0),
+        ("RIGHT", 14000.0 + _LABEL_OFFSET_MM, 0.0),
+        ("BENCH", 0.0, -7500.0 - _LABEL_OFFSET_MM),
+        ("STANDS", 0.0, 7500.0 + _LABEL_OFFSET_MM),
+    )
+
+    for text, x_mm, y_mm in labels:
+        px, py = _inset_world_to_px(x_mm, y_mm, inset_width)
+        (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, _LABEL_FONT_SCALE, _LABEL_THICKNESS)
+        x = int(max(2, min(px - tw // 2, iw - tw - 2)))
+        y = int(max(th + 1, min(py + th // 2, ih - 2)))
+        cv2.putText(
+            canvas,
+            text,
+            (x, y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            _LABEL_FONT_SCALE,
+            _LABEL_COLOR,
+            _LABEL_THICKNESS,
+            cv2.LINE_AA,
+        )
 
 
 def _draw_cam_dot(cam: np.ndarray, xy: tuple[int, int], ordinal: int) -> None:
