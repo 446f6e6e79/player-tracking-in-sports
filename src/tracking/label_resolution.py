@@ -2,6 +2,10 @@ from collections import defaultdict
 from dataclasses import replace
 
 from src.types.tracking import FrameTrackedDetections, TrackedDetection, TrackingOutput
+from src.utils.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 BALL_CLASS = "Ball"
 
@@ -80,9 +84,9 @@ def _assign_stable_labels(
         # Assign the top label anyway, even though it's a conflict
         else:
             resolved[track_id] = ranked[track_id][0][0]
-            print(
-                f"[label_resolution] track {track_id} had no free label; "
-                f"keeping conflicting top choice {resolved[track_id]!r}"
+            logger.warning(
+                "track %s had no free label; keeping conflicting top choice %r",
+                track_id, resolved[track_id],
             )
 
     return resolved

@@ -42,9 +42,13 @@ from src.tracking.deep_sort import build_deep_sort_tracker, step_deep_sort
 from src.tracking.label_resolution import resolve_track_labels
 from src.types.detection import DetectionOutput, merge_detections
 from src.types.tracking import FrameTrackedDetections, TrackingOutput
+from src.utils.logging import configure_logging, get_logger
 from src.utils.video_io import stream_frame_chunks, video_fps
 from src.visualization.drawing import draw_tracked_detections
 from src.visualization.video_render import stream_tracking_output_video
+
+
+logger = get_logger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
@@ -80,15 +84,18 @@ def _detect_on_chunk(
     frame_index_offset: int,
 ) -> DetectionOutput:
     """Run the two-pass YOLO + merge + NMS pipeline on a single chunk of frames."""
+    logger.info("Running player pass...")
     raw_player = run_yolo_detection(
         yolo_model, frames, inference_size=1280,
         class_ids=player_classes, batch_size=yolo_batch_size,
     )
+    logger.info("Running ball pass...")
     raw_ball = run_yolo_detection(
         yolo_model, frames,
         conf_threshold=0.2, inference_size=1600, class_ids=[0],
         batch_size=yolo_batch_size,
     )
+    logger.info("Processing raw detections...")
     player_out = yolo_to_detection_output(
         raw_player, yolo_model,
         camera_id=camera, fps=fps, source=model_name,
@@ -99,6 +106,7 @@ def _detect_on_chunk(
         camera_id=camera, fps=fps, source=model_name,
         frame_index_offset=frame_index_offset,
     )
+    logger.info("Merging player and ball detections and applying NMS...")
     merged = merge_detections(player_out, ball_out)
     return class_independent_nms(merged, iou_threshold=0.75)
 
@@ -135,7 +143,7 @@ def run_2d_pipeline(
     chunk_size: int = 128,
 ) -> None:
     """Programmatic entry point for the 2D detection+tracking pipeline (streaming)."""
-    print(f"Running 2D pipeline for camera {camera} with model {model}...")
+    logger.info("Running 2D pipeline for camera %s with model %s...", camera, model)
 
     paths = CameraPaths.for_camera(
         camera,
@@ -157,7 +165,7 @@ def run_2d_pipeline(
         raise FileNotFoundError(f"Video not found: {paths.video}")
 
     fps = video_fps(paths.video)
-    print(f"Source video {paths.video} reports {fps:.2f} fps")
+    logger.info("Source video %s reports %.2f fps", paths.video, fps)
 
     # Load the model once and discover the player class ids (everything but ball=0)
     model_path = YOLO_FINE_TUNED_DIR / model
@@ -179,8 +187,9 @@ def run_2d_pipeline(
     for start, chunk in stream_frame_chunks(paths.video, chunk_size=chunk_size,
                                             max_frames=max_frames):
         chunk_len = len(chunk)
-        print(f"Chunk @ frame {start} ({chunk_len} frames)")
+        logger.info("Chunk @ frame %d (%d frames)", start, chunk_len)
 
+        # Run detection on the chunk and accumulate the results
         chunk_dets = _detect_on_chunk(
             yolo_model, chunk,
             player_classes=player_classes,
@@ -200,8 +209,9 @@ def run_2d_pipeline(
 
     if total_frames == 0:
         raise RuntimeError(f"No frames were read from {paths.video}.")
-    print(f"Processed {total_frames} frames across the streamed video.")
+    logger.info("Processed %d frames across the streamed video.", total_frames)
 
+    # Build the final outputs and write the videos
     detection_output = DetectionOutput(
         source=model, camera_id=camera, fps=fps, frames=detection_frames,
     )
@@ -210,26 +220,26 @@ def run_2d_pipeline(
     )
 
     if save_detection_video:
-        print("Streaming detection video...")
+        logger.info("Streaming detection video...")
         stream_tracking_output_video(
             _stream_annotated_frames(paths.video, detection_output, chunk_size, max_frames),
             str(paths.detection_video), fps=fps,
         )
 
     if save_tracking_video:
-        print("Streaming pre-resolution tracking video...")
+        logger.info("Streaming pre-resolution tracking video...")
         stream_tracking_output_video(
             _stream_annotated_frames(paths.video, tracking_output, chunk_size, max_frames),
             str(paths.pre_resolution_video), fps=fps,
         )
 
-    print("Resolving track labels...")
+    logger.info("Resolving track labels...")
     resolved_output = resolve_track_labels(tracking_output)
 
-    print(f"Writing resolved tracking output to {paths.tracking_json}...")
+    logger.info("Writing resolved tracking output to %s...", paths.tracking_json)
     resolved_output.write(str(paths.tracking_json), overwrite=force)
 
-    print(f"Streaming final tracking video to {paths.tracking_video}...")
+    logger.info("Streaming final tracking video to %s...", paths.tracking_video)
     stream_tracking_output_video(
         _stream_annotated_frames(paths.video, resolved_output, chunk_size, max_frames),
         str(paths.tracking_video), fps=fps,
@@ -237,6 +247,7 @@ def run_2d_pipeline(
 
 
 def main() -> None:
+    configure_logging()
     args = parse_args()
     run_2d_pipeline(
         camera=args.camera,

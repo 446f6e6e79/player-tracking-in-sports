@@ -1,8 +1,12 @@
 from ultralytics import YOLO
-import time
+from tqdm import tqdm
 
 from src.types.tracking import Detection, FrameDetections
 from src.types.detection import DetectionOutput, BoundingBox
+from src.utils.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 
 def run_yolo_detection(
@@ -34,28 +38,24 @@ def run_yolo_detection(
         raise ValueError("run_yolo_detection received an empty frame list.")
 
     raw_results: list = []
-    start_time = time.time()
     total = len(frames)
-    last_progress_report = 0
 
-    for start in range(0, total, batch_size):
-        batch = frames[start:start + batch_size]
-        results = model.predict(
-            batch,
-            conf=conf_threshold,
-            imgsz=inference_size,      # Increase the inference size for better accuracy
-            iou=iou_threshold,         # Set IoU threshold for NMS
-            classes=class_ids,         # Filter detections to only the specified class IDs (if provided)
-            verbose=False,             # Suppress detailed output for cleaner logs
-        )
-        raw_results.extend(results)
-
-        # Report progress every ~100 frames irrespective of batch size.
-        done = start + len(batch)
-        if done - last_progress_report >= 100 or done == total:
-            elapsed = time.time() - start_time
-            print(f"  Processed {done}/{total} frames ({done / max(elapsed, 1e-9):.1f} fps)")
-            last_progress_report = done
+    progress = tqdm(total=total, desc="YOLO", unit="frame", leave=False)
+    try:
+        for start in range(0, total, batch_size):
+            batch = frames[start:start + batch_size]
+            results = model.predict(
+                batch,
+                conf=conf_threshold,
+                imgsz=inference_size,      # Increase the inference size for better accuracy
+                iou=iou_threshold,         # Set IoU threshold for NMS
+                classes=class_ids,         # Filter detections to only the specified class IDs (if provided)
+                verbose=False,             # Suppress detailed output for cleaner logs
+            )
+            raw_results.extend(results)
+            progress.update(len(batch))
+    finally:
+        progress.close()
 
     return raw_results
 

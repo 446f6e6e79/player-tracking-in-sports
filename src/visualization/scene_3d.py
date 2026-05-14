@@ -14,6 +14,10 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  registers 3D projection
 
 from src.geometry import court as cp
 from src.types.geometry import FrameTriangulatedPoints, Point3D, TriangulationOutput
+from src.utils.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 
 # World-frame axis bounds (meters) — court extents plus 1 m padding, Z up to 4 m.
@@ -164,4 +168,4 @@ def produce_3d_scene_video(
     finally:
         plt.close(fig)
         plt.switch_backend(original_backend)
-    print(f"Video saved successfully at: {output_path}")
+    logger.info("Video saved successfully at: %s", output_path)

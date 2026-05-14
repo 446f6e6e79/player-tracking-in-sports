@@ -22,7 +22,11 @@ from src.calibration.extrinsics import solve_camera_pose
 from src.calibration.picker import collect_clicks
 from src.cli import add_input_dir_arg
 from src.paths import CameraPaths
+from src.utils.logging import configure_logging, get_logger
 from src.utils.video_io import load_first_frame
+
+
+logger = get_logger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,6 +40,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    configure_logging()
     args = parse_args()
 
     # Load the camera parameters from disk
@@ -48,14 +53,14 @@ def main() -> None:
     clicks, status = collect_clicks(args.camera, frame, args.display_max_dim)
     # If the user quit during clicking, we should not write any JSON file
     if status == "quit":
-        print("Quit requested. No JSON written.")
+        logger.info("Quit requested. No JSON written.")
         return
-    
+
     try:
         # Compute the camera pose via solvePnP, and get the reprojection residuals for each landmark
         rvec, tvec, labels, residuals = solve_camera_pose(clicks, cam.mtx, cam.dist)
     except ValueError as e:
-        print(f"\nsolvePnP refused: {e}")
+        logger.error("solvePnP refused: %s", e)
         return
 
     print(f"\n=== Reprojection residuals (px), {len(labels)} landmarks ===")
@@ -66,11 +71,11 @@ def main() -> None:
     # Prompt the user to confirm writing the extrinsics to disk 
     answer = input(f"\nWrite extrinsics for {args.camera}? [y/N]: ").strip().lower()
     if answer != "y":
-        print("Discarded. No JSON modified.")
+        logger.info("Discarded. No JSON modified.")
         return
     # Save the extrinsics to disk
     cam.save_extrinsics(rvec, tvec)
-    print(f"Wrote rvec/tvec to {cam.path}")
+    logger.info("Wrote rvec/tvec to %s", cam.path)
 
 
 if __name__ == "__main__":

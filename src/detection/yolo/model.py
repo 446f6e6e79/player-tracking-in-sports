@@ -7,6 +7,10 @@ from src.paths.model_paths import (
     YOLO_DEFAULT_FILENAME,
     YOLO_DEFAULT_PATH,
 )
+from src.utils.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 
 def load_fine_tuned_yolo_model(model_path: str | Path | None = None) -> YOLO:
@@ -20,7 +24,7 @@ def load_fine_tuned_yolo_model(model_path: str | Path | None = None) -> YOLO:
     if model_path is None:
         model_path = _ensure_default_model()
 
-    print(f"Model ready at {model_path}. Loading into memory...")
+    logger.info("Model ready at %s. Loading into memory...", model_path)
     return YOLO(model_path)
 
 def _download_model_from_huggingface(
@@ -42,7 +46,8 @@ def _download_model_from_huggingface(
     local_dir = Path(local_dir)
     local_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Downloading {filename} from Hugging Face repo '{repo_id}' into {local_dir}...")
+    logger.info("Downloading %s from Hugging Face repo '%s' into %s...",
+                filename, repo_id, local_dir)
     local_path = hf_hub_download(
         repo_id=repo_id,
         filename=filename,
@@ -67,7 +72,7 @@ def _ensure_default_model(
     if model_path.exists():
         return model_path
 
-    print(f"Model not found at {model_path}; fetching default from {HF_REPO_ID}.")
+    logger.info("Model not found at %s; fetching default from %s.", model_path, HF_REPO_ID)
     return _download_model_from_huggingface(
         filename=YOLO_DEFAULT_FILENAME,
         local_dir=model_path.parent,

@@ -1,5 +1,5 @@
 import cv2
-import time
+from tqdm import tqdm
 
 from src.types.tracking import Detection, FrameDetections
 from src.types.detection import DetectionOutput, BoundingBox
@@ -11,6 +11,45 @@ from src.detection.image_processing import (
     opening_closing,
     refine_blobs,
 )
+from src.utils.logging import get_logger
+
+
+logger = get_logger(__name__)
+
+
+def step_mog2(
+    mog2: cv2.BackgroundSubtractorMOG2,
+    frame: cv2.Mat,
+    *,
+    clahe: cv2.CLAHE,
+    opening_kernel,
+    closing_kernel,
+    opening_kernel_size: int,
+    closing_kernel_size: int,
+    min_area: int,
+    max_area: int,
+    learning_rate: float = -1,
+    detect_shadows: bool = False,
+) -> cv2.Mat:
+    """Run the MOG2 pipeline on a single BGR frame and return the cleaned mask.
+
+    Stateful across calls via the shared `mog2` instance: the caller is
+    responsible for constructing it once per stream (see `run_mog2_detection`
+    for the canonical setup). Extracted so chunk-based callers (notebook /
+    streaming pipelines) can keep the background model alive across chunks.
+    """
+    norm_frame = normalize_illumination(frame, clahe=clahe)
+    mask = mog2.apply(norm_frame, learningRate=learning_rate)
+
+    if detect_shadows:
+        mask[mask == 127] = 0
+
+    mask = opening_closing(
+        mask, opening_kernel_size, closing_kernel_size,
+        opening_kernel=opening_kernel, closing_kernel=closing_kernel,
+    )
+    return refine_blobs(mask, min_area, max_area)
+
 
 def run_mog2_detection(
     frames: list[cv2.Mat],
@@ -57,38 +96,52 @@ def run_mog2_detection(
     opening_kernel = make_morph_kernel(opening_kernel_size)
     closing_kernel = make_morph_kernel(closing_kernel_size)
 
-    masks = []
-    start_time = time.time()
-    for i, frame in enumerate(frames):
-        # Normalize illumination before MOG2 to mitigate lighting changes, which can cause false positives and missed detections.
-        norm_frame = normalize_illumination(frame, clahe=clahe)
-
-        # MOG2 foreground mask extraction
-        mask = mog2.apply(norm_frame, learningRate=learning_rate)
-
-        # Remove shadows if detect_shadows is True
-        if detect_shadows:
-            mask[mask == 127] = 0  # Set shadow pixels to black (0)
-
-        # Morphological opening and closing to clean up the mask
-        mask = opening_closing(
-            mask, opening_kernel_size, closing_kernel_size,
-            opening_kernel=opening_kernel, closing_kernel=closing_kernel,
+    masks = [
+        step_mog2(
+            mog2, frame,
+            clahe=clahe,
+            opening_kernel=opening_kernel,
+            closing_kernel=closing_kernel,
+            opening_kernel_size=opening_kernel_size,
+            closing_kernel_size=closing_kernel_size,
+            min_area=min_area,
+            max_area=max_area,
+            learning_rate=learning_rate,
+            detect_shadows=detect_shadows,
         )
+        for frame in tqdm(frames, desc="MOG2", unit="frame", leave=False)
+    ]
 
-        # Blob filtering by area to remove small noise and large non-player blobs
-        mask = refine_blobs(mask, min_area, max_area)
-
-        masks.append(mask)
-
-        if (i + 1) % 100 == 0:
-            print(f"  Processed {i + 1}/{len(frames)} frames ({(i + 1) / (time.time() - start_time):.1f} fps)")
-    
     # Black out the first heat_up_frames to allow MOG2 background model to stabilize without producing noisy masks
     for i in range(min(heat_up_frames, len(masks))):
         masks[i][:] = 0
 
     return masks
+
+
+def mog2_frame_to_detections(
+    mask: cv2.Mat,
+    frame_index: int,
+) -> FrameDetections:
+    """Convert one MOG2 binary mask into a `FrameDetections` (one box per blob)."""
+    num_labels, _, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+
+    # label 0 is background, skip it
+    detections = []
+    for label in range(1, num_labels):
+        x = int(stats[label, cv2.CC_STAT_LEFT])
+        y = int(stats[label, cv2.CC_STAT_TOP])
+        w = int(stats[label, cv2.CC_STAT_WIDTH])
+        h = int(stats[label, cv2.CC_STAT_HEIGHT])
+
+        detections.append(Detection(
+            bbox=BoundingBox(float(x), float(y), float(x + w), float(y + h)),
+            confidence=1.0,
+            class_id=None,      # MOG2 does not provide class information
+            class_name=None,    # MOG2 does not provide class information
+        ))
+    return FrameDetections(frame_index=frame_index, detections=detections)
+
 
 def mog2_to_detection_output(
     raw_masks: list[cv2.Mat],
@@ -107,28 +160,10 @@ def mog2_to_detection_output(
     Returns:
         DetectionOutput with one FrameDetections per input mask.
     """
-    frames = []
-    for frame_index, mask in enumerate(raw_masks):
-
-        # Extract one bounding box per connected component in the binary mask
-        num_labels, _, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
-
-        # Build the list of Detection objects for this frame (label 0 is background, skip it)
-        detections = []
-        for label in range(1, num_labels):
-            x = int(stats[label, cv2.CC_STAT_LEFT])
-            y = int(stats[label, cv2.CC_STAT_TOP])
-            w = int(stats[label, cv2.CC_STAT_WIDTH])
-            h = int(stats[label, cv2.CC_STAT_HEIGHT])
-
-            detections.append(Detection(
-                bbox=BoundingBox(float(x), float(y), float(x + w), float(y + h)),
-                confidence=1.0,
-                class_id=None,      # MOG2 does not provide class information
-                class_name=None,    # MOG2 does not provide class information
-            ))
-        frames.append(FrameDetections(frame_index=frame_index, detections=detections))
-
+    frames = [
+        mog2_frame_to_detections(mask, frame_index)
+        for frame_index, mask in enumerate(raw_masks)
+    ]
     return DetectionOutput(
         source=source,
         camera_id=camera_id,

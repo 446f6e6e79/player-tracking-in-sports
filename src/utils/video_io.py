@@ -5,6 +5,11 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from src.utils.logging import get_logger
+
+
+logger = get_logger(__name__)
+
 
 def open_video(video_path: str) -> cv2.VideoCapture:
     """
@@ -78,27 +83,36 @@ def stream_frame_chunks(
     chunk_size: int,
     max_frames: int | None = None,
 ) -> Iterator[tuple[int, list[np.ndarray]]]:
-    """Stream a video as chunks of frames without ever holding the full video in RAM.
-
-    Yields `(start_index, frames_in_chunk)` tuples where `start_index` is the
-    absolute (0-based) frame index of the chunk's first frame. The final chunk
-    may be shorter than `chunk_size`. Honors `max_frames` if provided.
+    """
+    Stream a video as chunks of frames without ever holding the full video in RAM.
+    Parameters:
+        - video_path (str | Path): The path to the video file.
+        - chunk_size (int): The number of frames to include in each chunk.
+        - max_frames (int | None): The maximum number of frames to read from the video. If None, reads until the end of the video.
+    Yields: A tuple containing:
+        - start_index (int): The absolute index of the first frame in the current chunk.
+        - chunk (list[np.ndarray]): A list of frames in the current chunk.
     """
     if chunk_size < 1:
         raise ValueError(f"chunk_size must be >= 1, got {chunk_size}")
+
     cap = open_video(str(video_path))
     try:
-        produced = 0
-        start_index = 0
-        chunk: list[np.ndarray] = []
+        produced = 0                    # Count of frames yielded so far in the current stream.
+        start_index = 0                 # Absolute index of the first frame in the current chunk.
+        chunk: list[np.ndarray] = []    # List of collected frames for the current chunk.
         while True:
+            # Check for max_frames at the start of the loop to avoid yielding an extra chunk after reaching the limit.
             if max_frames is not None and produced >= max_frames:
                 break
+
+            # Read a single frame from the video and check if it was successful.
             ret, frame = cap.read()
             if not ret:
                 break
             chunk.append(frame)
             produced += 1
+            # If we've collected enough frames for a full chunk, yield it and reset for the next chunk.
             if len(chunk) >= chunk_size:
                 yield start_index, chunk
                 start_index += len(chunk)
@@ -155,7 +169,7 @@ def save_video(
     # Write each frame to the video file
     for frame in frames:
         out.write(cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR) if frame.ndim == 2 else frame)
-    print(f"Video saved successfully at: {output_path}")
+    logger.info("Video saved successfully at: %s", output_path)
 
     # Release the VideoWriter object to finalize the video file
     out.release()

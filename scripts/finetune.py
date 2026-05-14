@@ -23,9 +23,18 @@ which also includes instructions for downloading a Roboflow dataset.
 
 import argparse
 import shutil
+import sys
 from pathlib import Path
 
 from ultralytics import YOLO
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+
+from src.utils.logging import configure_logging, get_logger
+
+
+logger = get_logger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,6 +54,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    configure_logging()
     args = parse_args()
 
     model = YOLO(args.model)
@@ -79,7 +89,7 @@ def main() -> None:
 
     if not best.exists():
         if last.exists():
-            print(f"Warning: best.pt not found, using last.pt from {last}")
+            logger.warning("best.pt not found, using last.pt from %s", last)
             best = last
         else:
             raise FileNotFoundError(
@@ -89,7 +99,7 @@ def main() -> None:
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(best, out)
-    print(f"\nFine-tuned model saved to: {out}")
+    logger.info("Fine-tuned model saved to: %s", out)
 
     # Quick sanity validation on the dataset's own valid split
     YOLO(out).val(data=args.data, imgsz=args.imgsz, device=args.device)

@@ -6,9 +6,13 @@ import cv2
 from src.types.geometry import FrameTriangulatedPoints, TriangulationOutput
 from src.types.tracking import FrameTrackedDetections, TrackingOutput
 from src.types.detection import DetectionOutput, FrameDetections
+from src.utils.logging import get_logger
 from src.utils.video_io import save_video
 from src.visualization.drawing import draw_detections, draw_tracked_detections, overlay_inset
 from src.visualization.minimap import _MARGIN, draw_dot, make_base_canvas
+
+
+logger = get_logger(__name__)
 
 
 _INFO_COLOR = (200, 200, 200)
@@ -66,7 +70,7 @@ def stream_tracking_output_video(
             writer.write(cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR) if frame.ndim == 2 else frame)
     finally:
         writer.release()
-    print(f"Video saved successfully at: {output_path}")
+    logger.info("Video saved successfully at: %s", output_path)
 
 
 def produce_tracking_output_video(
