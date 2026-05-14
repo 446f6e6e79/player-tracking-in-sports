@@ -17,8 +17,8 @@ COLAB USAGE:
         --data /content/<dataset>/data.yaml \\
         --epochs 50 --device 0
 
-NOTE: an already-wired-up Colab notebook is available in the repository as finetune.ipynb, 
-which also includes instructions for downloading a Roboflow dataset. 
+NOTE: an already-wired-up Colab notebook is available in the repository as notebooks/finetune.ipynb,
+which also includes instructions for downloading a Roboflow dataset.
 """
 
 import argparse
