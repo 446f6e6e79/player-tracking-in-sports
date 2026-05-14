@@ -1,8 +1,11 @@
+import os
+from collections.abc import Iterable
+
 import cv2
 
 from src.types.geometry import FrameTriangulatedPoints, TriangulationOutput
-from src.types.tracking import TrackingOutput
-from src.types.detection import DetectionOutput
+from src.types.tracking import FrameTrackedDetections, TrackingOutput
+from src.types.detection import DetectionOutput, FrameDetections
 from src.utils.video_io import save_video
 from src.visualization.drawing import draw_detections, draw_tracked_detections, overlay_inset
 from src.visualization.minimap import _MARGIN, draw_dot, make_base_canvas
@@ -32,6 +35,38 @@ def produce_detection_output_video(
         for frame, frame_detections in zip(frames, detection_output.frames)
     ]
     save_video(annotated, output_path, int(out_fps))
+
+
+def stream_tracking_output_video(
+    annotated_frames: Iterable[cv2.Mat],
+    output_path: str,
+    fps: float,
+) -> None:
+    """Write `annotated_frames` to `output_path` one frame at a time.
+
+    Mirrors `save_video` but consumes an iterable, so callers can render
+    frames as they are produced (e.g. while streaming chunks from disk) and
+    never hold the full annotated video in memory.
+    """
+    iterator = iter(annotated_frames)
+    try:
+        first = next(iterator)
+    except StopIteration:
+        raise ValueError("stream_tracking_output_video received no frames.")
+
+    height, width = first.shape[:2]
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    writer = cv2.VideoWriter(output_path, fourcc, int(fps), (width, height), True)
+    if not writer.isOpened():
+        raise RuntimeError(f"Could not open VideoWriter for: {output_path}")
+    try:
+        writer.write(cv2.cvtColor(first, cv2.COLOR_GRAY2BGR) if first.ndim == 2 else first)
+        for frame in iterator:
+            writer.write(cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR) if frame.ndim == 2 else frame)
+    finally:
+        writer.release()
+    print(f"Video saved successfully at: {output_path}")
 
 
 def produce_tracking_output_video(

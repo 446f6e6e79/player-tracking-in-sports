@@ -5,6 +5,8 @@ from src.types.tracking import Detection, FrameDetections
 from src.types.detection import DetectionOutput, BoundingBox
 
 from src.detection.image_processing import (
+    make_clahe,
+    make_morph_kernel,
     normalize_illumination,
     opening_closing,
     refine_blobs,
@@ -43,18 +45,23 @@ def run_mog2_detection(
         A list of cleaned binary masks corresponding to each input frame, where white pixels indicate detected motion.
     """
 
-    # structuring elements should not be recreated on each frame)
     mog2 = cv2.createBackgroundSubtractorMOG2(
         history=history_length,
         varThreshold=var_threshold,
         detectShadows=detect_shadows,
     )
 
+    # Build the CLAHE object and the morph kernels once — they are stateless
+    # across frames and OpenCV reallocates a non-trivial amount per call.
+    clahe = make_clahe()
+    opening_kernel = make_morph_kernel(opening_kernel_size)
+    closing_kernel = make_morph_kernel(closing_kernel_size)
+
     masks = []
     start_time = time.time()
     for i, frame in enumerate(frames):
         # Normalize illumination before MOG2 to mitigate lighting changes, which can cause false positives and missed detections.
-        norm_frame = normalize_illumination(frame)
+        norm_frame = normalize_illumination(frame, clahe=clahe)
 
         # MOG2 foreground mask extraction
         mask = mog2.apply(norm_frame, learningRate=learning_rate)
@@ -64,7 +71,10 @@ def run_mog2_detection(
             mask[mask == 127] = 0  # Set shadow pixels to black (0)
 
         # Morphological opening and closing to clean up the mask
-        mask = opening_closing(mask, opening_kernel_size, closing_kernel_size)
+        mask = opening_closing(
+            mask, opening_kernel_size, closing_kernel_size,
+            opening_kernel=opening_kernel, closing_kernel=closing_kernel,
+        )
 
         # Blob filtering by area to remove small noise and large non-player blobs
         mask = refine_blobs(mask, min_area, max_area)

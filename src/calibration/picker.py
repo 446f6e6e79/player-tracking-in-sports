@@ -4,7 +4,12 @@ import cv2
 import numpy as np
 
 from src.calibration.extrinsics import LandmarkClicks
-from src.geometry.court import LANDMARKS, WORLD_LANDMARKS_MM
+from src.geometry.court import (
+    COURT_HALF_LENGTH_MM,
+    COURT_HALF_WIDTH_MM,
+    LANDMARKS,
+    WORLD_LANDMARKS_MM,
+)
 from src.visualization.drawing import overlay_inset
 from src.visualization.minimap import canvas_size, make_base_canvas, world_to_px
 
@@ -82,10 +87,10 @@ def _draw_side_labels(canvas: np.ndarray, inset_width: int) -> None:
     """Render LEFT/RIGHT/BENCH/STANDS labels near the court edges."""
     ih, iw = canvas.shape[:2]
     labels = (
-        ("LEFT", -14000.0 - _LABEL_OFFSET_MM, 0.0),
-        ("RIGHT", 14000.0 + _LABEL_OFFSET_MM, 0.0),
-        ("BENCH", 0.0, -7500.0 - _LABEL_OFFSET_MM),
-        ("STANDS", 0.0, 7500.0 + _LABEL_OFFSET_MM),
+        ("LEFT", -COURT_HALF_LENGTH_MM - _LABEL_OFFSET_MM, 0.0),
+        ("RIGHT", COURT_HALF_LENGTH_MM + _LABEL_OFFSET_MM, 0.0),
+        ("BENCH", 0.0, -COURT_HALF_WIDTH_MM - _LABEL_OFFSET_MM),
+        ("STANDS", 0.0, COURT_HALF_WIDTH_MM + _LABEL_OFFSET_MM),
     )
 
     for text, x_mm, y_mm in labels:
