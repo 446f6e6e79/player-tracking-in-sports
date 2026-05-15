@@ -1,12 +1,9 @@
 import cv2
-from tqdm import tqdm
 
 from src.types.tracking import Detection, FrameDetections
 from src.types.detection import DetectionOutput, BoundingBox
 
 from src.detection.image_processing import (
-    make_clahe,
-    make_morph_kernel,
     normalize_illumination,
     opening_closing,
     refine_blobs,
@@ -49,74 +46,6 @@ def step_mog2(
         opening_kernel=opening_kernel, closing_kernel=closing_kernel,
     )
     return refine_blobs(mask, min_area, max_area)
-
-
-def run_mog2_detection(
-    frames: list[cv2.Mat],
-    learning_rate: float = -1,
-    history_length: int = 1000,
-    var_threshold: float = 25,
-    detect_shadows: bool = False,
-    opening_kernel_size: int = 7,
-    closing_kernel_size: int = 11,
-    min_area: int = 1500,
-    max_area: int = 200000,
-    heat_up_frames: int = 10,
-) -> list[cv2.Mat]:
-    """
-    End-to-end MOG2 motion detection pipeline.
-
-    The pipeline runs in a single per-frame loop:
-    illumination normalization → MOG2 background subtraction → field-color suppression →
-    morphological opening/closing → blob area filtering.
-    Parameters:
-        - frames: A list of video frames (in BGR format) to process for motion detection.
-        - learning_rate: MOG2 background model learning rate. Default 0.03.
-        - history_length: Number of previous frames used for background modeling. Default 1000.
-        - var_threshold: MOG2 variance threshold for pixel classification. Default 25.
-        - detect_shadows: Whether MOG2 should detect shadows. Default False.
-        - opening_kernel_size: Kernel size for morphological opening. Default 7.
-        - closing_kernel_size: Kernel size for morphological closing. Default 11.
-        - min_area: Minimum blob area in pixels to keep. Default 1500.
-        - max_area: Maximum blob area in pixels to keep. Default 200000.
-        - heat_up_frames: Number of initial frames to feed into MOG2 without outputting masks, allowing the background model to stabilize. Default 10.
-    Returns:
-        A list of cleaned binary masks corresponding to each input frame, where white pixels indicate detected motion.
-    """
-
-    mog2 = cv2.createBackgroundSubtractorMOG2(
-        history=history_length,
-        varThreshold=var_threshold,
-        detectShadows=detect_shadows,
-    )
-
-    # Build the CLAHE object and the morph kernels once — they are stateless
-    # across frames and OpenCV reallocates a non-trivial amount per call.
-    clahe = make_clahe()
-    opening_kernel = make_morph_kernel(opening_kernel_size)
-    closing_kernel = make_morph_kernel(closing_kernel_size)
-
-    masks = [
-        step_mog2(
-            mog2, frame,
-            clahe=clahe,
-            opening_kernel=opening_kernel,
-            closing_kernel=closing_kernel,
-            opening_kernel_size=opening_kernel_size,
-            closing_kernel_size=closing_kernel_size,
-            min_area=min_area,
-            max_area=max_area,
-            learning_rate=learning_rate,
-            detect_shadows=detect_shadows,
-        )
-        for frame in tqdm(frames, desc="MOG2", unit="frame", leave=False)
-    ]
-
-    # Black out the first heat_up_frames to allow MOG2 background model to stabilize without producing noisy masks
-    for i in range(min(heat_up_frames, len(masks))):
-        masks[i][:] = 0
-
-    return masks
 
 
 def mog2_frame_to_detections(
