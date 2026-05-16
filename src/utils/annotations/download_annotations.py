@@ -6,6 +6,10 @@ from pathlib import Path
 from roboflow import Roboflow
 
 from src.utils.annotations.process_coco_annotations import process_coco_annotations
+from src.utils.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 _COCO_FILENAME = "_annotations.coco.json"
 
@@ -34,7 +38,7 @@ def download_annotations(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Downloading {project} v{version} from '{workspace}'...")
+    logger.info("Downloading %s v%s from '%s'...", project, version, workspace)
     rf = Roboflow(api_key=api_key)
 
     # Roboflow's Python SDK doesn't support direct download to a specified directory, so we use a temporary directory and then move the files.
@@ -58,6 +62,6 @@ def download_annotations(
             if src is None:
                 raise FileNotFoundError(f"No JSON annotation file found in {split_dir}")
             shutil.copy2(src, output_dir / src.name)
-            print(f"Copied {src.name} to {output_dir}")
+            logger.info("Copied %s to %s", src.name, output_dir)
 
-    print("Download complete.")
+    logger.info("Download complete.")

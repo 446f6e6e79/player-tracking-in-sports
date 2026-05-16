@@ -1,9 +1,25 @@
 import cv2
 
+
+def make_clahe(
+    clip_limit: float = 6.0,
+    tile_grid_size: tuple[int, int] = (8, 8),
+) -> cv2.CLAHE:
+    """Build a CLAHE object configured the same way the MOG2 pipeline expects."""
+    return cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
+
+
+def make_morph_kernel(size: int) -> cv2.Mat:
+    """Build an elliptical structuring element of `size × size`."""
+    return cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size))
+
+
 def normalize_illumination(
         frame: cv2.Mat,
         clip_limit: float = 6.0,
-        tile_grid_size: tuple[int, int] = (8, 8)
+        tile_grid_size: tuple[int, int] = (8, 8),
+        *,
+        clahe: cv2.CLAHE | None = None,
     ) -> cv2.Mat:
     """
     Single-frame variant of normalize_illumination.
@@ -14,8 +30,9 @@ def normalize_illumination(
     Returns:
         A BGR frame with normalized illumination.
     """
-    # Create a CLAHE object with the specified clip limit and tile grid size
-    clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
+    # Reuse the caller's CLAHE if one was supplied; otherwise build one on the fly.
+    if clahe is None:
+        clahe = make_clahe(clip_limit, tile_grid_size)
 
     # Convert the frame from BGR to LAB color space
     lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
@@ -32,6 +49,9 @@ def opening_closing(
         mask: cv2.Mat,
         opening_kernel_size: int,
         closing_kernel_size: int,
+        *,
+        opening_kernel: cv2.Mat | None = None,
+        closing_kernel: cv2.Mat | None = None,
     ) -> cv2.Mat:
     """
     Single-frame variant of opening_closing. Takes precomputed structuring elements so the
@@ -39,13 +59,16 @@ def opening_closing(
     Parameters:
         - mask: A single binary mask.
         - opening_kernel_size: Kernel size for morphological opening.
-        - closing_kernel_size: Kernel size for morphological closing. 
+        - closing_kernel_size: Kernel size for morphological closing.
+        - opening_kernel / closing_kernel: optional precomputed kernels; built
+          from the size args when omitted.
     Returns:
         A binary mask with opening then closing applied.
     """
-    # Create structuring elements (kernels) for opening and closing operations
-    opening_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (opening_kernel_size, opening_kernel_size))
-    closing_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (closing_kernel_size, closing_kernel_size))
+    if opening_kernel is None:
+        opening_kernel = make_morph_kernel(opening_kernel_size)
+    if closing_kernel is None:
+        closing_kernel = make_morph_kernel(closing_kernel_size)
 
     # Apply morphological opening to remove small noise, then closing to fill small holes
     opened = cv2.morphologyEx(mask, cv2.MORPH_OPEN, opening_kernel)

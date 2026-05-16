@@ -1,4 +1,5 @@
 import json
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 import numpy as np
@@ -36,6 +37,15 @@ class CameraData:
         with open(path, "r") as f:
             data = json.load(f)
         zero3 = [[0.0], [0.0], [0.0]]   # Default value for rvec/tvec if not present in JSON
+        # An absent rvec/tvec means the camera has not been calibrated through
+        # solvePnP yet; downstream triangulation will silently produce garbage,
+        # so surface a clear warning at load time.
+        if "rvecs" not in data or "tvecs" not in data:
+            warnings.warn(
+                f"Camera {camera_id!r} has no extrinsics in {path}; defaulting rvec/tvec to zero. "
+                "Run scripts/calibrate_extrinsics.py before any triangulation/3D step.",
+                stacklevel=2,
+            )
         return cls(
             camera_id=camera_id,
             mtx=np.array(data["mtx"], dtype=np.float32),

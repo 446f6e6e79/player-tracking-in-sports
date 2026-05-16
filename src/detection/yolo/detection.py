@@ -1,8 +1,12 @@
 from ultralytics import YOLO
-import time
+from tqdm import tqdm
 
 from src.types.tracking import Detection, FrameDetections
 from src.types.detection import DetectionOutput, BoundingBox
+from src.utils.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 
 def run_yolo_detection(
@@ -12,6 +16,7 @@ def run_yolo_detection(
     inference_size: int = 640,
     iou_threshold: float = 0.45,
     class_ids: list[int] | None = None,  # Restrict detection to these class IDs (None = all classes)
+    batch_size: int = 4,
 ) -> list:
     """Run YOLO detection on a list of frames.
     Parameters:
@@ -21,27 +26,43 @@ def run_yolo_detection(
         inference_size: size to which frames are resized for inference (default 640)
         iou_threshold: IoU threshold for non-max suppression (default 0.45)
         class_ids: list of class IDs to detect (default None = detect all classes)
+        batch_size: how many frames to feed `model.predict` per call. Higher
+            values amortise GPU launch overhead at the cost of more VRAM/RAM —
+            default 4 stays comfortable on laptops.
     Returns:
-        List of raw YOLO results (one per frame) as returned by model.predict()
+        List of raw YOLO results (one per frame), in the same order as `frames`.
     """
-    raw_results = []
-    start_time = time.time()
+    if batch_size < 1:
+        raise ValueError(f"batch_size must be >= 1, got {batch_size}")
+    if not frames:
+        raise ValueError("run_yolo_detection received an empty frame list.")
 
-    for i, frame in enumerate(frames):
-        result = model.predict(
-            frame,
-            conf=conf_threshold,
-            imgsz=inference_size,      # Increase the inference size for better accuracy
-            iou=iou_threshold,         # Set IoU threshold for NMS
-            classes=class_ids,         # Filter detections to only the specified class IDs (if provided)
-            verbose=False,             # Suppress detailed output for cleaner logs
-        )
-        raw_results.append(result[0])
+    raw_results: list = []
+    total = len(frames)
 
-        if (i + 1) % 100 == 0:
-            print(f"  Processed {i + 1}/{len(frames)} frames ({(i + 1) / (time.time() - start_time):.1f} fps)")
+    progress = tqdm(total=total, desc="YOLO", unit="frame", leave=False)
+    try:
+        for start in range(0, total, batch_size):
+            batch = frames[start:start + batch_size]
+            results = model.predict(
+                batch,
+                conf=conf_threshold,
+                imgsz=inference_size,      # Increase the inference size for better accuracy
+                iou=iou_threshold,         # Set IoU threshold for NMS
+                classes=class_ids,         # Filter detections to only the specified class IDs (if provided)
+                verbose=False,             # Suppress detailed output for cleaner logs
+            )
+            raw_results.extend(results)
+            progress.update(len(batch))
+    finally:
+        progress.close()
 
     return raw_results
+
+
+def _to_numpy(tensor_like):
+    """Best-effort conversion of an Ultralytics tensor to a NumPy array on CPU."""
+    return tensor_like.cpu().numpy() if hasattr(tensor_like, "cpu") else tensor_like
 
 
 def yolo_to_detection_output(
@@ -50,6 +71,7 @@ def yolo_to_detection_output(
     camera_id: str,
     fps: float,
     source: str = "yolo",
+    frame_index_offset: int = 0,
 ) -> DetectionOutput:
     """Convert raw YOLO detection results into a DetectionOutput (pre-tracking).
     Parameters:
@@ -58,26 +80,32 @@ def yolo_to_detection_output(
         camera_id: identifier for the camera (e.g. "cam_13")
         fps: video frame rate
         source: label for the detector (e.g. "yolo_v11m_pt")
+        frame_index_offset: absolute frame index of the first element in
+            `raw_results`. Lets chunked callers reconstruct global indices.
     Returns:
         DetectionOutput with one FrameDetections per input frame.
     """
     frames = []
-    for frame_index, raw_frame_data in enumerate(raw_results):
+    class_names = model.names
+    for local_index, raw_frame_data in enumerate(raw_results):
+        frame_index = local_index + frame_index_offset
+        boxes = raw_frame_data.boxes
+        # Pull each tensor across to CPU exactly once per frame instead of
+        # per-detection — saves a lot of host/device round-trips on dense frames.
+        xyxy = _to_numpy(boxes.xyxy)
+        confs = _to_numpy(boxes.conf)
+        cls_ids = _to_numpy(boxes.cls).astype(int)
 
-        # Build the list of Detection objects for this frame
-        detections = []
-        for j in range(len(raw_frame_data.boxes)):
-            # For each detected box, extract its information
-            raw_bbox = raw_frame_data.boxes.xyxy[j].cpu().numpy() if hasattr(raw_frame_data.boxes.xyxy[j], 'cpu') else raw_frame_data.boxes.xyxy[j]
-            class_id = int(raw_frame_data.boxes.cls[j].item())
-
-            # Build a Detection object and add it to the list for this frame
-            detections.append(Detection(
-                bbox=BoundingBox(float(raw_bbox[0]), float(raw_bbox[1]), float(raw_bbox[2]), float(raw_bbox[3])),
-                confidence=round(float(raw_frame_data.boxes.conf[j].item()), 3),
-                class_id=class_id,
-                class_name=model.names[class_id],
-            ))
+        detections = [
+            Detection(
+                bbox=BoundingBox(float(xyxy[j, 0]), float(xyxy[j, 1]),
+                                 float(xyxy[j, 2]), float(xyxy[j, 3])),
+                confidence=round(float(confs[j]), 3),
+                class_id=int(cls_ids[j]),
+                class_name=class_names[int(cls_ids[j])],
+            )
+            for j in range(len(boxes))
+        ]
         frames.append(FrameDetections(frame_index=frame_index, detections=detections))
 
     return DetectionOutput(

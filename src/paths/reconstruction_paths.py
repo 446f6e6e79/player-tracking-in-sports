@@ -1,7 +1,12 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from src.paths.camera_paths import parse_camera_id
 from src.paths.defaults import DEFAULT_RESULTS_DIR
+
+# Separator used in the reconstruction directory name to join the participating
+# camera ids (e.g. `cam_13__cam_4__cam_2`).
+_RECON_KEY_SEP = "__"
 
 
 @dataclass(frozen=True)
@@ -16,8 +21,11 @@ class ReconstructionPaths:
         camera_ids: tuple[str, ...],
         results_dir: Path | str | None = None,
     ) -> "ReconstructionPaths":
+        # Validate every camera id at the boundary so the resulting key is safe.
+        for cam_id in camera_ids:
+            parse_camera_id(cam_id)
         res_root = Path(results_dir) if results_dir is not None else DEFAULT_RESULTS_DIR
-        key = "__".join(camera_ids)
+        key = _RECON_KEY_SEP.join(camera_ids)
         recon_dir = res_root / "reconstruction" / key
         return cls(
             camera_ids=camera_ids,

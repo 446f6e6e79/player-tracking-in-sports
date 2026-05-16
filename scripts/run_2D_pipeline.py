@@ -1,15 +1,18 @@
 """
 Run the optimal detection + tracking pipeline end-to-end on one camera.
 The Pipeline steps are:
-    1. Open the camera's video, read frames.
-    2. Two-pass YOLO with the fine-tuned model:
-       - player pass at default resolution (imgsz=1280) (class_ids = every non-ball class)
+    1. Stream the camera's video in N-frame chunks (chunk_size, default 128).
+    2. For each chunk run two YOLO passes with the fine-tuned model:
+       - player pass at imgsz=1280 (class_ids = every non-ball class)
        - ball pass at imgsz=1600 with conf_threshold=0.2 (class_ids=[0])
-    3. Merge the two passes into one DetectionOutput.
-    4. Class-independent NMS (iou=0.75) to collapse duplicate identity-coded boxes.
-    5. DeepSORT (max_iou_distance=0.8, max_age=60, n_init=2).
-    6. Resolve per-track labels (cumulative-confidence vote).
-    7. Render the final tracking video. 
+       merge them, apply class-independent NMS (iou=0.75), then step
+       DeepSORT one frame at a time so tracker state carries across chunks.
+       Only lightweight detection/tracking metadata is retained — the chunk
+       frames themselves are discarded as soon as the chunk is processed.
+    3. Resolve per-track labels (cumulative-confidence vote) on the full
+       TrackingOutput once streaming finishes.
+    4. Render the final tracking video by re-streaming the input video and
+       drawing the resolved boxes on each frame.
 
 The intermediate detection / tracking videos are off by default — flag them on
 explicitly when needed.
@@ -23,138 +26,242 @@ import sys
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-import cv2
-
+from src.cli import (
+    add_force_arg,
+    add_input_dir_arg,
+    add_max_frames_arg,
+    add_output_dir_arg,
+    max_frames_or_none,
+)
 from src.detection.nms import class_independent_nms
 from src.detection.yolo.detection import run_yolo_detection, yolo_to_detection_output
 from src.detection.yolo.model import load_fine_tuned_yolo_model
 from src.paths import CameraPaths, preflight_output_paths
 from src.paths.model_paths import YOLO_FINE_TUNED_DIR
-from src.tracking.deep_sort import apply_deep_sort
+from src.tracking.deep_sort import build_deep_sort_tracker, step_deep_sort
 from src.tracking.label_resolution import resolve_track_labels
-from src.types.detection import merge_detections
-from src.utils.video_io import get_frames, open_video
-from src.visualization.video_render import produce_tracking_output_video
+from src.types.detection import DetectionOutput, merge_detections
+from src.types.tracking import FrameTrackedDetections, TrackingOutput
+from src.utils.logging import configure_logging, get_logger
+from src.utils.video_io import stream_frame_chunks, video_fps
+from src.visualization.drawing import draw_tracked_detections
+from src.visualization.video_render import stream_tracking_output_video
+
+
+logger = get_logger(__name__)
+
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Run the optimal tracking pipeline on one camera.")
     p.add_argument("--camera", required=True, help="Camera id, e.g. cam_13.")
-    p.add_argument("--input-dir", default=None,
-                   help="Directory containing the source videos.")
-    p.add_argument("--output-dir", default=None,
-                   help="Root directory for produced videos.")
+    add_input_dir_arg(p)
+    add_output_dir_arg(p)
     p.add_argument("--model", default="best.pt",
                    help="Path to the fine-tuned YOLO weights. If the file is missing, "
                         "best.pt is auto-downloaded from the Hugging Face repo.")
-    p.add_argument("--max-frames", type=int, default=-1,
-                   help="-1 to read every frame, otherwise stop after N frames.")
+    p.add_argument("--yolo-batch", type=int, default=4,
+                   help="YOLO inference batch size. 4 is laptop-safe; bump to 16-32 on a discrete GPU.")
+    p.add_argument("--chunk-size", type=int, default=128,
+                   help="Frames per processing chunk. Smaller = lower peak RAM.")
+    add_max_frames_arg(p)
     p.add_argument("--save-detection-video", action="store_true",
                    help="Also save the post-NMS detection video.")
     p.add_argument("--save-tracking-video", action="store_true",
                    help="Also save the tracking video before label resolution.")
-    p.add_argument("--force", action="store_true",
-                   help="Overwrite existing pipeline outputs instead of failing.")
+    add_force_arg(p)
     return p.parse_args()
 
-def main() -> None:
-    args = parse_args()
-    print(f"Running 2D pipeline for camera {args.camera} with model {args.model}...")
+
+def _detect_on_chunk(
+    yolo_model,
+    frames: list,
+    *,
+    player_classes: list[int],
+    yolo_batch_size: int,
+    camera: str,
+    fps: float,
+    model_name: str,
+    frame_index_offset: int,
+) -> DetectionOutput:
+    """Run the two-pass YOLO + merge + NMS pipeline on a single chunk of frames."""
+    logger.info("Running player pass...")
+    raw_player = run_yolo_detection(
+        yolo_model, frames, inference_size=1280,
+        class_ids=player_classes, batch_size=yolo_batch_size,
+    )
+    logger.info("Running ball pass...")
+    raw_ball = run_yolo_detection(
+        yolo_model, frames,
+        conf_threshold=0.2, inference_size=1600, class_ids=[0],
+        batch_size=yolo_batch_size,
+    )
+    logger.info("Processing raw detections...")
+    player_out = yolo_to_detection_output(
+        raw_player, yolo_model,
+        camera_id=camera, fps=fps, source=model_name,
+        frame_index_offset=frame_index_offset,
+    )
+    ball_out = yolo_to_detection_output(
+        raw_ball, yolo_model,
+        camera_id=camera, fps=fps, source=model_name,
+        frame_index_offset=frame_index_offset,
+    )
+    logger.info("Merging player and ball detections and applying NMS...")
+    merged = merge_detections(player_out, ball_out)
+    return class_independent_nms(merged, iou_threshold=0.75)
+
+
+def _stream_annotated_frames(
+    video_path: Path,
+    output: DetectionOutput | TrackingOutput,
+    chunk_size: int,
+    max_frames: int | None,
+):
+    """Yield each input frame with the per-frame boxes drawn on top.
+
+    Accepts either a DetectionOutput or a TrackingOutput — `draw_tracked_detections`
+    handles both shapes (omitting `#track_id` when none is present).
+    """
+    by_index = {fd.frame_index: fd for fd in output.frames}
+    for start, chunk in stream_frame_chunks(video_path, chunk_size=chunk_size, max_frames=max_frames):
+        for offset, frame in enumerate(chunk):
+            fd = by_index.get(start + offset)
+            yield frame if fd is None else draw_tracked_detections(frame, fd)
+
+
+def run_2d_pipeline(
+    camera: str,
+    *,
+    input_dir: str | None = None,
+    output_dir: str | None = None,
+    model: str = "best.pt",
+    max_frames: int | None = None,
+    save_detection_video: bool = False,
+    save_tracking_video: bool = False,
+    force: bool = False,
+    yolo_batch_size: int = 4,
+    chunk_size: int = 128,
+) -> None:
+    """Programmatic entry point for the 2D detection+tracking pipeline (streaming)."""
+    logger.info("Running 2D pipeline for camera %s with model %s...", camera, model)
 
     paths = CameraPaths.for_camera(
-        args.camera,
-        videos_input_dir=args.input_dir,
-        results_dir=args.output_dir,
+        camera,
+        videos_input_dir=input_dir,
+        results_dir=output_dir,
     )
     paths.mkdir()
 
     output_paths_to_check = [paths.tracking_video, paths.tracking_json]
-    if args.save_detection_video:
+    if save_detection_video:
         output_paths_to_check.append(paths.detection_video)
-    if args.save_tracking_video:
+    if save_tracking_video:
         output_paths_to_check.append(paths.pre_resolution_video)
 
     # Check for existing outputs before doing any expensive compute, to avoid overwriting results
-    preflight_output_paths(output_paths_to_check, args.force)
+    preflight_output_paths(output_paths_to_check, force)
 
-    # Verify the input video exists
     if not paths.video.exists():
         raise FileNotFoundError(f"Video not found: {paths.video}")
 
-    # 1. Open video, read frames, get fps
-    cap = open_video(str(paths.video))
-    max_frames = None if args.max_frames < 0 else args.max_frames
-    frames_color, _ = get_frames(cap, max_frames=max_frames)
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    cap.release()
-    print(f"Loaded {len(frames_color)} frames at {fps:.2f} fps from {paths.video}")
+    fps = video_fps(paths.video)
+    logger.info("Source video %s reports %.2f fps", paths.video, fps)
 
-    # 2. Two-pass YOLO
-    MODEL_PATH = YOLO_FINE_TUNED_DIR / args.model
-    model = load_fine_tuned_yolo_model(MODEL_PATH)
-    player_classes = list(range(1, len(model.names)))  # everything except ball (class 0)
+    # Load the model once and discover the player class ids (everything but ball=0)
+    model_path = YOLO_FINE_TUNED_DIR / model
+    yolo_model = load_fine_tuned_yolo_model(model_path)
+    player_classes = list(range(1, len(yolo_model.names)))
 
-    # Run the player pass
-    print("Running player detection pass...")
-    raw_player_results = run_yolo_detection(
-        model, frames_color, inference_size=1280,
-        class_ids=player_classes
-    )
-    print("Player detection pass completed.")
-    
-    print("Running ball detection pass...")
-    # Run the ball pass
-    raw_ball_results = run_yolo_detection(
-        model, frames_color,
-        conf_threshold=0.2, inference_size=1600, class_ids=[0],
-    )
-    print("Ball detection pass completed.")
-
-    # 3. Convert YOLO outputs to DetectionOutput and merge them
-    print("Merging player and ball detections...")
-    player_out = yolo_to_detection_output(
-        raw_player_results, model,
-        camera_id=args.camera, fps=fps, source=args.model,
-    )
-    ball_out = yolo_to_detection_output(
-        raw_ball_results, model,
-        camera_id=args.camera, fps=fps, source=args.model,
-    )
-    detection_output = merge_detections(player_out, ball_out)
-
-    # 4. Class-independent NMS
-    print("Applying class-independent NMS to merge duplicate boxes...")
-    detection_output = class_independent_nms(detection_output, iou_threshold=0.75)
-
-    # Optional: save the detection video with boxes drawn but before tracking
-    if args.save_detection_video:
-        print("Saving detection video...")
-        produce_tracking_output_video(frames_color, detection_output, str(paths.detection_video))
-
-    # 5. DeepSORT
-    print("Applying DeepSORT...")
-    tracking_output = apply_deep_sort(
-        detection_output,
-        frames=frames_color,
+    tracker = build_deep_sort_tracker(
         max_iou_distance=0.7,
         max_age=30,
         n_init=2,
     )
-    print("DeepSORT tracking completed.")
 
-    if args.save_tracking_video:
-        print("Saving tracking video before label resolution...")
-        produce_tracking_output_video(frames_color, tracking_output, str(paths.pre_resolution_video))
+    # Accumulators — these store *metadata only*; chunk frames are released
+    # at the end of each chunk iteration.
+    detection_frames: list = []
+    tracking_frames: list[FrameTrackedDetections] = []
 
-    # 6. Resolve labels
-    print("Resolving track labels...")
+    total_frames = 0
+    for start, chunk in stream_frame_chunks(paths.video, chunk_size=chunk_size,
+                                            max_frames=max_frames):
+        chunk_len = len(chunk)
+        logger.info("Chunk @ frame %d (%d frames)", start, chunk_len)
+
+        # Run detection on the chunk and accumulate the results
+        chunk_dets = _detect_on_chunk(
+            yolo_model, chunk,
+            player_classes=player_classes,
+            yolo_batch_size=yolo_batch_size,
+            camera=camera, fps=fps, model_name=model,
+            frame_index_offset=start,
+        )
+        detection_frames.extend(chunk_dets.frames)
+
+        # Step DeepSORT one frame at a time so the tracker keeps state across chunks.
+        for offset, frame in enumerate(chunk):
+            fi = start + offset
+            fd = chunk_dets.frames[offset]
+            tracking_frames.append(step_deep_sort(tracker, fd, frame))
+        total_frames += chunk_len
+        del chunk
+
+    if total_frames == 0:
+        raise RuntimeError(f"No frames were read from {paths.video}.")
+    logger.info("Processed %d frames across the streamed video.", total_frames)
+
+    # Build the final outputs and write the videos
+    detection_output = DetectionOutput(
+        source=model, camera_id=camera, fps=fps, frames=detection_frames,
+    )
+    tracking_output = TrackingOutput(
+        source=model, camera_id=camera, fps=fps, frames=tracking_frames,
+    )
+
+    if save_detection_video:
+        logger.info("Streaming detection video...")
+        stream_tracking_output_video(
+            _stream_annotated_frames(paths.video, detection_output, chunk_size, max_frames),
+            str(paths.detection_video), fps=fps,
+        )
+
+    if save_tracking_video:
+        logger.info("Streaming pre-resolution tracking video...")
+        stream_tracking_output_video(
+            _stream_annotated_frames(paths.video, tracking_output, chunk_size, max_frames),
+            str(paths.pre_resolution_video), fps=fps,
+        )
+
+    logger.info("Resolving track labels...")
     resolved_output = resolve_track_labels(tracking_output)
 
-    # 7. Persist the resolved tracking output (JSON) and render the final video
-    print(f"Writing resolved tracking output to {paths.tracking_json}...")
-    resolved_output.write(str(paths.tracking_json), overwrite=args.force)
+    logger.info("Writing resolved tracking output to %s...", paths.tracking_json)
+    resolved_output.write(str(paths.tracking_json), overwrite=force)
 
-    print(f"Saving final tracking video with resolved labels to {paths.tracking_video}...")
-    produce_tracking_output_video(frames_color, resolved_output, str(paths.tracking_video))
+    logger.info("Streaming final tracking video to %s...", paths.tracking_video)
+    stream_tracking_output_video(
+        _stream_annotated_frames(paths.video, resolved_output, chunk_size, max_frames),
+        str(paths.tracking_video), fps=fps,
+    )
+
+
+def main() -> None:
+    configure_logging()
+    args = parse_args()
+    run_2d_pipeline(
+        camera=args.camera,
+        input_dir=args.input_dir,
+        output_dir=args.output_dir,
+        model=args.model,
+        max_frames=max_frames_or_none(args.max_frames),
+        save_detection_video=args.save_detection_video,
+        save_tracking_video=args.save_tracking_video,
+        force=args.force,
+        yolo_batch_size=args.yolo_batch,
+        chunk_size=args.chunk_size,
+    )
+
 
 if __name__ == "__main__":
     main()

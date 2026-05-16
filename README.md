@@ -33,7 +33,7 @@ The 3D reconstruction pipeline triangulates the merged 2D detections across view
 - **ffmpeg** on `PATH` for OpenCV video writing. Can be installed via `brew install ffmpeg` on macOS or downloaded from the [official site](https://ffmpeg.org/download.html) for Windows/Linux.
 - **Match videos** in `data/videos/` as `out2.mp4`, `out4.mp4`, `out13.mp4` (cameras `cam_2`, `cam_4`, `cam_13`).
 - **Fine-tuned weights** at `models/fine_tuned_models/best.pt` (default used by the pipeline script). Auto-downloaded from the [🤗 Hugging Face repo](https://huggingface.co/446f6e6e79/YOLO-basketball-fineTuned) on first run; you can also produce your own with the fine-tune flow below. 
-- **Roboflow API key** (only needed if you run the evaluation cell in `notebook.ipynb`). Copy `.env.example` to `.env` and fill in `ANNOTATIONS_API_KEY`.
+- **Roboflow API key** (only needed if you run the evaluation cell in `notebooks/main.ipynb`). Copy `.env.example` to `.env` and fill in `ANNOTATIONS_API_KEY`.
 
 ## Setup Environment
 
@@ -47,15 +47,15 @@ pip install -r requirements.txt
 
 ## Running the Project
 
-### Exploratory notebook — `notebook.ipynb`
+### Exploratory notebook — `notebooks/main.ipynb`
 
 ```bash
-jupyter lab notebook.ipynb
+jupyter lab notebooks/main.ipynb
 ```
 
 Walks through MOG2 baseline → YOLO baseline → fine-tuned two-pass detection → merge → tracking-evaluation → triangulation → evaluation.
 
-Change `CURRENT_CAMERA_ID` in the second cell to switch between `cam_2`, `cam_4`, and `cam_13`.
+Change `INSPECT_CAMERA_ID` in the second cell to switch between `cam_2`, `cam_4`, and `cam_13`.
 
 ### End-to-end 2D pipeline — `scripts/run_2D_pipeline.py`
 
@@ -77,11 +77,15 @@ python scripts/run_3D_reconstruction_pipeline.py --cameras cam_13 cam_4 cam_2
 ```
 See the docstring at the top of the script for the full step list.
 
+### Run the pipelines on Colab — `notebooks/pipeline_colab.ipynb`
+
+Thin Colab orchestrator around `scripts/run_2D_pipeline.py` and `scripts/run_3D_reconstruction_pipeline.py`, designed for a Colab GPU runtime so YOLO inference can use larger batches than a laptop allows. Place the synchronised match videos under `/content/drive/MyDrive/cv-project/videos/` (or upload them directly from a notebook cell); the fine-tuned weights are auto-downloaded from Hugging Face on first run.
+
 ### Fine-tune YOLO
 
 Two options.
 
-**Colab (recommended — needs GPU).** Open [`finetune.ipynb`](finetune.ipynb) in Colab, set the runtime to GPU, add `ROBOFLOW_API_KEY` to Colab Secrets, and fill the `TODO_WORKSPACE` / `TODO_PROJECT` / `TODO_VERSION` placeholders. The final cell downloads `best.pt` to your machine — drop it into `models/fine_tuned_models/` to use it from the notebook or the pipeline script, or push it to the [🤗 Hugging Face repo](https://huggingface.co/446f6e6e79/YOLO-basketball-fineTuned) so other contributors can auto-download it on first run.
+**Colab (recommended — needs GPU).** Open [`notebooks/finetune.ipynb`](notebooks/finetune.ipynb) in Colab, set the runtime to GPU, add `ROBOFLOW_API_KEY` to Colab Secrets, and fill the `TODO_WORKSPACE` / `TODO_PROJECT` / `TODO_VERSION` placeholders. The final cell downloads `best.pt` to your machine — drop it into `models/fine_tuned_models/` to use it from `notebooks/main.ipynb` or the pipeline script, or push it to the [🤗 Hugging Face repo](https://huggingface.co/446f6e6e79/YOLO-basketball-fineTuned) so other contributors can auto-download it on first run.
 
 **Local.** Download a Roboflow YOLO export manually, then:
 
@@ -97,10 +101,12 @@ Defaults: `imgsz=1280`, `batch=4`, 300 epochs, `patience=30`. Copy the best chec
 computer-vision-project/
 ├── src/                          # Library code
 │   ├── calibration/              # Camera params and extrinsics
+│   ├── cli/                      # Shared argparse helpers for pipeline scripts
 │   ├── detection/                # MOG2, YOLO, NMS
 │   ├── tracking/                 # DeepSORT, label resolution
 │   ├── geometry/                 # Calibration / 3D helpers
 │   ├── evaluation/               # Metrics against Roboflow annotations
+│   ├── paths/                    # Camera/reconstruction path resolution and preflight
 │   ├── visualization/            # Rendering helpers
 │   ├── types/                    # DetectionOutput / TrackingOutput dataclasses
 │   └── utils/                    # Video I/O, visualization, annotations
@@ -109,8 +115,10 @@ computer-vision-project/
 │   ├── run_3D_reconstruction_pipeline.py  # End-to-end 3D pipeline (CLI)
 │   ├── calibrate_extrinsics.py   # Calibration helper
 │   └── finetune.py               # YOLO fine-tuning (CLI)
-├── notebook.ipynb                # Exploratory walkthrough
-├── finetune.ipynb                # Colab orchestrator for scripts/finetune.py
+├── notebooks/
+│   ├── main.ipynb                # Exploratory walkthrough
+│   ├── finetune.ipynb            # Colab orchestrator for scripts/finetune.py
+│   └── pipeline_colab.ipynb      # Colab orchestrator for the 2D + 3D pipelines
 ├── models/                       # YOLO weights (git-ignored)
 │   └── fine_tuned_models/         # Fine-tuned checkpoints (best.pt)
 ├── data/                         # Videos, calibration, annotations (git-ignored)

@@ -2,6 +2,11 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
+from src.utils.logging import get_logger
+
+
+logger = get_logger(__name__)
+
 
 def process_coco_annotations(
     coco: dict,
@@ -46,7 +51,7 @@ def _camera_from_filename(file_name: str) -> str | None:
 
     # Sanity check that the prefix starts with "out" and extract the camera number
     if not prefix.startswith("out"):
-        print(f"WARNING: unrecognised prefix '{prefix}' in file name '{file_name}'")
+        logger.warning("Unrecognised prefix '%s' in file name '%s'", prefix, file_name)
         return None
 
     # Convert "out{N}" to "cam_{N}"
@@ -149,7 +154,7 @@ def _write_output_files(
     for cam in sorted(detections_by_cam_frame):
         out_path = outdir / f"{cam}.json"
         if out_path.exists():
-            print(f"{out_path}  skipped (already exists)")
+            logger.warning("%s skipped (already exists)", out_path)
             continue
 
         # Normalize annotation frame indices to 0-based for runtime consistency.
@@ -165,7 +170,5 @@ def _write_output_files(
         out = {"source": source, "camera_id": cam, "fps": fps, "frames": frames}
         with out_path.open("w") as f:
             json.dump(out, f, indent=2)
-        print(
-            f"{out_path}  -  {len(frames)} frames, "
-            f"{sum(len(fr['detections']) for fr in frames)} detections"
-        )
+        logger.info("%s - %d frames, %d detections", out_path, len(frames),
+                    sum(len(fr["detections"]) for fr in frames))

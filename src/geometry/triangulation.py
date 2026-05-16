@@ -1,3 +1,5 @@
+import warnings
+
 import cv2
 import numpy as np
 
@@ -81,7 +83,18 @@ def triangulate_rectified_outputs(
         - TriangulationOutput: Per-frame 3D points across all cameras.
     """
     if not outputs:
+        warnings.warn(
+            "triangulate_rectified_outputs called with no camera outputs; "
+            "returning an empty TriangulationOutput.",
+            stacklevel=2,
+        )
         return TriangulationOutput(fps=0.0, camera_ids=[], frames=[])
+
+    missing = set(outputs.keys()) - set(cameras.keys())
+    if missing:
+        raise KeyError(
+            f"Calibration data missing for cameras present in outputs: {sorted(missing)}"
+        )
 
     # Stable camera order, plus per-camera projection matrices and intrinsics.
     camera_ids = sorted(outputs.keys())
@@ -135,6 +148,15 @@ def triangulate_rectified_outputs(
             frame_index=frame_index,
             points=points_3d,
         ))
+
+    if triangulated_frames and not any(f.points for f in triangulated_frames):
+        warnings.warn(
+            "triangulate_rectified_outputs produced no 3D points across "
+            f"{len(triangulated_frames)} frames — no class id was observed in "
+            "two or more cameras simultaneously. Check calibration and class id "
+            "consistency across camera tracking outputs.",
+            stacklevel=2,
+        )
 
     return TriangulationOutput(
         fps=fps,

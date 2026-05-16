@@ -33,21 +33,21 @@ _SQUARE_HALF_SIDE = 14
 
 
 def _mm_to_px_scale(margin: int) -> float:
-    return (_CANVAS_W - 2 * margin) / (28000.0 + 2 * _PADDING_MM)
+    return (_CANVAS_W - 2 * margin) / (2 * cp.COURT_HALF_LENGTH_MM + 2 * _PADDING_MM)
 
 
 def canvas_size(margin: int = _MARGIN) -> tuple[int, int]:
     """(width, height) of the minimap canvas in pixels — what VideoWriter wants."""
     mm_to_px = _mm_to_px_scale(margin)
-    h = 2 * margin + int(round((15000.0 + 2 * _PADDING_MM) * mm_to_px))
+    h = 2 * margin + int(round((2 * cp.COURT_HALF_WIDTH_MM + 2 * _PADDING_MM) * mm_to_px))
     return _CANVAS_W, h
 
 
 def world_to_px(x_mm: float, y_mm: float, margin: int = _MARGIN) -> tuple[int, int]:
     """+X toward right hoop, +Y toward stands; bench side at top, left-court on right."""
     mm_to_px = _mm_to_px_scale(margin)
-    px = int(round(_CANVAS_W - margin - (x_mm + 14000.0 + _PADDING_MM) * mm_to_px))
-    py = int(round(margin + (y_mm + 7500.0 + _PADDING_MM) * mm_to_px))
+    px = int(round(_CANVAS_W - margin - (x_mm + cp.COURT_HALF_LENGTH_MM + _PADDING_MM) * mm_to_px))
+    py = int(round(margin + (y_mm + cp.COURT_HALF_WIDTH_MM + _PADDING_MM) * mm_to_px))
     return px, py
 
 
