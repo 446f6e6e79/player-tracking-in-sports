@@ -1,0 +1,88 @@
+models:
+  hf_repo_id: "446f6e6e79/YOLO-basketball-fineTuned"
+  yolo_filename: "best.pt"
+  osnet_filename: "osnet_x1_0_msmt17.pt"
+  osnet_model_name: "osnet_x1_0"
+
+classes:
+  ball_class_id: 0
+  ball_class_name: "Ball"
+
+pipeline:
+  chunk_size: 128
+  yolo_batch_size: 4
+
+detection:
+  # Default YOLO single-pass settings (standalone usage).
+  yolo:
+    conf_threshold: 0.3
+    inference_size: 640
+    iou_threshold: 0.45
+    batch_size: 4
+  # Two-pass detection used by run_2D_pipeline: separate player/ball passes then NMS merge.
+  two_pass:
+    player_inference_size: 1280
+    ball_inference_size: 1600
+    ball_conf_threshold: 0.2
+    merge_nms_iou: 0.75
+  nms:
+    iou_threshold: 0.5
+  mog2:
+    learning_rate: -1.0   # -1 = adaptive (OpenCV default)
+    detect_shadows: false
+  image_processing:
+    clahe_clip_limit: 6.0
+    clahe_tile_grid: [8, 8]
+    blob_min_area: 500
+    blob_max_area: 10000
+
+tracking:
+  deep_sort:
+    max_iou_distance: 0.7
+    max_appearance_distance: 0.2
+    max_age: 30
+    n_init: 2
+    feature_budget: 100
+  sort:
+    max_iou_distance: 0.8
+    max_age: 60
+    n_init: 2
+  appearance:
+    input_size: [256, 128]   # OSNet training resolution: [height, width]
+    embed_dim: 512           # OSNet x1.0 feature dimension
+  trajectory_smoothing:
+    max_gap: 5     # frames; gaps longer than this are NOT interpolated
+    ema_alpha: 0.5 # weight of the current observation; 1.0 = no smoothing
+
+geometry:
+  triangulation:
+    ground_inlier_mm: 600.0  # player per-camera ground estimate outlier gate
+    ball_reproj_px: 30.0     # ball reprojection residual gate (pixels)
+    min_views: 2             # minimum cameras required for triangulation
+  smoothing:
+    max_gap: 5        # frames; segments separated by more frames are not joined
+    gate_chi2: 11.345 # chi-square 0.99 quantile, 3 dof (Mahalanobis gate)
+    std_pos: 30.0     # Kalman process noise: position std (mm)
+    std_vel: 60.0     # Kalman process noise: velocity std (mm/frame)
+    std_meas: 80.0    # Kalman measurement noise std (mm)
+
+calibration:
+  solve_pnp_min_points: 6  # minimum clicked landmarks for solvePnP
+  rmse_min_points: 4       # minimum landmarks for reprojection RMSE
+  display_max_dim: 1280    # longest side of the calibration click window (px)
+
+training:
+  model: "yolo26m.pt"
+  epochs: 300
+  patience: 30
+  imgsz: 1280
+  batch: 4
+  name: "yolo_basketball"
+  out: "models/yolo_finetuned.pt"
+  augmentation:
+    mosaic: 0.7
+    mixup: 0.02
+    hsv_v: 0.25
+    degrees: 3.0
+    translate: 0.08
+    scale: 0.4

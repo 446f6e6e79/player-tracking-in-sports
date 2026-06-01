@@ -2,10 +2,9 @@ import cv2
 import numpy as np
 
 from src.calibration.camera_data import CameraData
+from src.config import get_config
 from src.types.geometry import FrameRectifiedPoints, RectifiedPoint, RectifiedPointsOutput
 from src.types.tracking import TrackingOutput
-
-_BALL_CLASS_ID = 0
 
 
 def rectify_points(points: np.ndarray, mtx: np.ndarray, dist: np.ndarray) -> np.ndarray:
@@ -41,11 +40,12 @@ def rectify_tracking_output(tracking: TrackingOutput, camera: CameraData) -> Rec
     Returns:
         - RectifiedPointsOutput: A new output containing rectified points for each detection.
     """
+    ball_class_id = get_config().classes.ball_class_id
     # Choose the reference pixel per detection (ball → centre; players → bottom-centre).
     ref_pixels: list[tuple[float, float]] = []
     for frame in tracking.frames:
         for det in frame.detections:
-            if det.class_id == _BALL_CLASS_ID:
+            if det.class_id == ball_class_id:
                 ref_pixels.append(det.bbox.get_center())
             else:
                 ref_pixels.append(det.bbox.get_bottom_center())

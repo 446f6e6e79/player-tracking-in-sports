@@ -15,6 +15,7 @@ import cv2
 import numpy as np
 
 from src.calibration.camera_data import CameraData
+from src.config import get_config
 from src.types.geometry import (
     FrameTriangulatedPoints,
     Point3D,
@@ -22,14 +23,6 @@ from src.types.geometry import (
     RectifiedPointsOutput,
     TriangulationOutput,
 )
-
-_BALL_CLASS_ID = 0
-# A player's per-camera ground estimate is rejected if it lies further than this
-# (mm) from the median across all cameras seeing that player in the frame.
-_GROUND_INLIER_MM = 600.0
-# A ball view is dropped if its reprojection residual exceeds this (px).
-_BALL_REPROJ_PX = 30.0
-
 
 def build_projection_matrix(
     mtx: np.ndarray,
@@ -76,14 +69,14 @@ def _ground_point(camera: CameraData, pixel: np.ndarray) -> np.ndarray | None:
     return C + scale * ray_world
 
 
-def _combine_ground_points(estimates: list[np.ndarray]) -> np.ndarray:
+def _combine_ground_points(estimates: list[np.ndarray], ground_inlier_mm: float) -> np.ndarray:
     """Robustly combine per-camera ground estimates: drop outliers, then mean."""
     if len(estimates) == 1:
         return estimates[0].copy()
     stacked = np.vstack(estimates)
     median = np.median(stacked, axis=0)
     distances = np.linalg.norm(stacked[:, :2] - median[:2], axis=1)
-    inliers = stacked[distances <= _GROUND_INLIER_MM]
+    inliers = stacked[distances <= ground_inlier_mm]
     return (inliers if len(inliers) > 0 else stacked).mean(axis=0)
 
 
@@ -108,15 +101,18 @@ def _reprojection_error(P: np.ndarray, X: np.ndarray, pt: np.ndarray) -> float:
 
 
 def _triangulate_ball(
-    Ps: list[np.ndarray], pixels: list[np.ndarray]
+    Ps: list[np.ndarray],
+    pixels: list[np.ndarray],
+    ball_reproj_px: float,
+    min_views: int,
 ) -> np.ndarray | None:
     """DLT-triangulate the ball, dropping views with large reprojection error."""
-    if len(Ps) < 2:
+    if len(Ps) < min_views:
         return None
     X = _dlt_triangulate(pixels, Ps)
     errors = [_reprojection_error(P, X, px) for P, px in zip(Ps, pixels)]
-    inliers = [i for i, e in enumerate(errors) if e <= _BALL_REPROJ_PX]
-    if len(inliers) < 2:
+    inliers = [i for i, e in enumerate(errors) if e <= ball_reproj_px]
+    if len(inliers) < min_views:
         return None
     if len(inliers) < len(Ps):
         X = _dlt_triangulate([pixels[i] for i in inliers], [Ps[i] for i in inliers])
@@ -180,6 +176,9 @@ def triangulate_rectified_outputs(
             all_frame_indices.add(frame.frame_index)
         per_camera_index[cam_id] = frame_map
 
+    tri_cfg = get_config().geometry.triangulation
+    ball_class_id = get_config().classes.ball_class_id
+
     triangulated_frames: list[FrameTriangulatedPoints] = []
     for frame_index in sorted(all_frame_indices):
         # Gather observations: class_id -> list of (cam_id, RectifiedPoint).
@@ -193,9 +192,13 @@ def triangulate_rectified_outputs(
             pixels = [np.array([pt.x, pt.y], dtype=np.float64) for _, pt in observations]
             class_name = observations[0][1].class_name
 
-            if class_id == _BALL_CLASS_ID:
+            if class_id == ball_class_id:
                 ball_Ps = [Ps[cam_id] for cam_id, _ in observations]
-                X = _triangulate_ball(ball_Ps, pixels)
+                X = _triangulate_ball(
+                    ball_Ps, pixels,
+                    ball_reproj_px=tri_cfg.ball_reproj_px,
+                    min_views=tri_cfg.min_views,
+                )
                 if X is None:
                     continue
                 points_3d.append(Point3D(
@@ -210,7 +213,7 @@ def triangulate_rectified_outputs(
                 ]
                 if not ground:
                     continue
-                X = _combine_ground_points(ground)
+                X = _combine_ground_points(ground, tri_cfg.ground_inlier_mm)
                 points_3d.append(Point3D(
                     x=float(X[0]), y=float(X[1]), z=0.0,
                     class_id=class_id, class_name=class_name,

@@ -12,11 +12,11 @@ logger = get_logger(__name__)
 def run_yolo_detection(
     model: YOLO,
     frames: list,
-    conf_threshold: float = 0.3,
-    inference_size: int = 640,
-    iou_threshold: float = 0.45,
-    class_ids: list[int] | None = None,  # Restrict detection to these class IDs (None = all classes)
-    batch_size: int = 4,
+    conf_threshold: float,
+    inference_size: int,
+    iou_threshold: float,
+    batch_size: int,
+    class_ids: list[int] | None = None,  # None = detect all classes
 ) -> list:
     """Run YOLO detection on a list of frames.
     Parameters:

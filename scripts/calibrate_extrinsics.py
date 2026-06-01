@@ -20,9 +20,10 @@ sys.path.insert(0, str(REPO_ROOT))
 from src.calibration.camera_data import CameraData
 from src.calibration.extrinsics import solve_camera_pose, verify_stored_extrinsics
 from src.calibration.picker import collect_clicks
-from src.paths.defaults import DEFAULT_CAMERA_DATA_DIR
 from src.cli import add_input_dir_arg
+from src.config import get_config
 from src.paths import CameraPaths
+from src.paths.defaults import DEFAULT_CAMERA_DATA_DIR
 from src.utils.logging import configure_logging, get_logger
 from src.utils.video_io import load_first_frame
 
@@ -35,8 +36,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--camera", required=True,
                    help="Camera id to calibrate (e.g. cam_2, cam_4, cam_13).")
     add_input_dir_arg(p)
-    p.add_argument("--display-max-dim", type=int, default=1280,
-                   help="Longest side of the click window in pixels.")
+    p.add_argument("--display-max-dim", type=int, default=None,
+                   help="Longest side of the click window in pixels (default: from config).")
     p.add_argument("--verify", action="store_true",
                    help="Report reprojection RMSE for the stored extrinsics without re-clicking "
                         "(requires a prior calibration that saved landmarks_px).")
@@ -57,21 +58,24 @@ def main() -> None:
         return
 
     # Load the camera parameters from disk
+    cfg = get_config()
+    display_max_dim = args.display_max_dim if args.display_max_dim is not None else cfg.calibration.display_max_dim
+
     cam = CameraData.load(args.camera)
     paths = CameraPaths.for_camera(args.camera, videos_input_dir=args.input_dir)
     frame = load_first_frame(paths.video)
 
     print(f"\n=== Click landmarks in {args.camera} ===")
-    # Collect 2D-3D correspondences via user clicks
-    clicks, status = collect_clicks(args.camera, frame, args.display_max_dim)
-    # If the user quit during clicking, we should not write any JSON file
+    clicks, status = collect_clicks(args.camera, frame, display_max_dim)
     if status == "quit":
         logger.info("Quit requested. No JSON written.")
         return
 
     try:
-        # Compute the camera pose via solvePnP, and get the reprojection residuals for each landmark
-        rvec, tvec, labels, residuals = solve_camera_pose(clicks, cam.mtx, cam.dist)
+        rvec, tvec, labels, residuals = solve_camera_pose(
+            clicks, cam.mtx, cam.dist,
+            min_points=cfg.calibration.solve_pnp_min_points,
+        )
     except ValueError as e:
         logger.error("solvePnP refused: %s", e)
         return

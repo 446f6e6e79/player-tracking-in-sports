@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from src.config import get_config
 from src.paths.model_paths import OSNET_WEIGHTS_PATH
 from src.tracking.sort_components.osnet import (
     osnet_x0_25,
@@ -18,9 +19,6 @@ from src.utils.logging import get_logger
 
 
 logger = get_logger(__name__)
-
-# The weights file is not included in the repo due to size, but can be downloaded from the official OSNet model zoo.
-DEFAULT_MODEL_NAME = "osnet_x1_0"
 
 # Vendored OSNet variants — same factory signatures as torchreid.models.
 _OSNET_FACTORIES = {
@@ -54,8 +52,8 @@ def _pick_device() -> torch.device:
 
 
 def load_osnet_model(
-    weights_path: str | Path = OSNET_WEIGHTS_PATH,
-    model_name: str = DEFAULT_MODEL_NAME,
+    weights_path: str | Path,
+    model_name: str,
     device: str | torch.device | None = None,
     force_reload: bool = False,
 ) -> torch.nn.Module:
@@ -130,28 +128,29 @@ def _load_osnet_weights(model: torch.nn.Module, weights_path: Path) -> None:
 
 class AppearanceEncoder:
     """
-    AppearanceEncoder uses a pre-trained OSNet model to extract 512-dimensional feature vectors
+    AppearanceEncoder uses a pre-trained OSNet model to extract feature vectors
     for person re-identification.
     The features are L2-normalized to be compatible with cosine distance-based matching in DeepSORT.
     Parameters:
         - weights_path: Path to the OSNet weights file (e.g., osnet_x1_0_msmt17.pt).
         - model_name: The specific OSNet architecture to use.
         - device: The torch device to run the model on (e.g., "cuda", "mps", or "cpu"). If None, it will be auto-selected.
-        - input_size: The (height, width) to which detected person crops will be resized before feature extraction. OSNet was trained on 256x128 crops.
-    Usage:
+        - input_size: The (height, width) to which detected person crops will be resized before feature extraction.
+        - embed_dim: Output feature dimension of the chosen OSNet variant.
     """
-    EMBED_DIM = 512  # OSNet x1.0 final feature dimension
 
     def __init__(
         self,
-        weights_path: str | Path = OSNET_WEIGHTS_PATH,
-        model_name: str = DEFAULT_MODEL_NAME,
+        weights_path: str | Path,
+        model_name: str,
+        input_size: tuple[int, int],
+        embed_dim: int,
         device: str | torch.device | None = None,
-        input_size: tuple[int, int] = (256, 128),  # OSNet's training resolution (H, W)
     ) -> None:
         # If no device was specified, pick the best available one.
         self.device = torch.device(device) if device is not None else _pick_device()
         self.input_size = input_size
+        self.EMBED_DIM = embed_dim
 
         # Reuse the cached OSNet module if one exists for these (path, variant, device).
         self._model = load_osnet_model(

@@ -9,7 +9,7 @@ from src.types.detection import DetectionOutput
 
 def class_independent_nms(
     detection_output: DetectionOutput,
-    iou_threshold: float = 0.5,
+    iou_threshold: float,
 ) -> DetectionOutput:
     """
     Greedy class-independent NMS, frame by frame.

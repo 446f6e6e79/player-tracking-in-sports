@@ -25,8 +25,8 @@ def step_mog2(
     closing_kernel_size: int,
     min_area: int,
     max_area: int,
-    learning_rate: float = -1,
-    detect_shadows: bool = False,
+    learning_rate: float,
+    detect_shadows: bool,
 ) -> cv2.Mat:
     """Run the MOG2 pipeline on a single BGR frame and return the cleaned mask.
 

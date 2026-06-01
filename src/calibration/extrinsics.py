@@ -3,6 +3,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from src.config import get_config
 from src.geometry.court import LANDMARKS, WORLD_LANDMARKS_MM
 
 # Canonical home for the picker output type — picker.py imports it from here
@@ -41,7 +42,7 @@ def solve_camera_pose(
     clicks: LandmarkClicks,
     mtx: np.ndarray,
     dist: np.ndarray,
-    min_points: int = 6,
+    min_points: int,
 ) -> tuple[np.ndarray, np.ndarray, list[str], np.ndarray]:
     """
     Calibrate a single camera against the known 3D court model via solvePnP.
@@ -122,6 +123,7 @@ def verify_stored_extrinsics(camera_data_path: Path) -> float:
         if name in WORLD_LANDMARKS_MM:
             world_pts.append(WORLD_LANDMARKS_MM[name])
             img_pts.append(px)
-    if len(world_pts) < 4:
-        raise ValueError("Not enough stored landmarks to compute RMSE (need ≥ 4).")
+    rmse_min = get_config().calibration.rmse_min_points
+    if len(world_pts) < rmse_min:
+        raise ValueError(f"Not enough stored landmarks to compute RMSE (need ≥ {rmse_min}).")
     return reprojection_rmse(rvec, tvec, mtx, dist, np.array(world_pts), np.array(img_pts))

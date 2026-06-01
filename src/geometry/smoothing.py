@@ -2,6 +2,7 @@ from __future__ import annotations
 import logging
 import numpy as np
 
+from src.config import get_config
 from src.types.geometry import (
     FrameTriangulatedPoints,
     Point3D,
@@ -9,12 +10,6 @@ from src.types.geometry import (
 )
 
 logger = logging.getLogger(__name__)
-
-_MAX_GAP = 5
-_BALL_CLASS_NAME = "Ball"
-# Chi-square 0.99 quantile, 3 dof: reject measurements beyond this Mahalanobis
-# distance from the predicted state.
-_GATE_CHI2 = 11.345
 
 
 def _transition() -> np.ndarray:
@@ -43,6 +38,7 @@ def _smooth_segment(
     std_pos: float,
     std_vel: float,
     std_meas: float,
+    gate_chi2: float,
 ) -> list[np.ndarray]:
     """Forward Kalman + RTS backward pass over one contiguous segment.
 
@@ -75,7 +71,7 @@ def _smooth_segment(
             y = z - h @ x_prior[i]
             s = h @ p_prior[i] @ h.T + r
             s_inv = np.linalg.inv(s)
-            if float(y @ s_inv @ y) > _GATE_CHI2:
+            if float(y @ s_inv @ y) > gate_chi2:
                 accept = False
         if accept:
             k = p_prior[i] @ h.T @ s_inv
@@ -95,11 +91,14 @@ def _smooth_segment(
 
 def smooth_triangulation(
     triangulation: TriangulationOutput,
-    std_pos: float = 30.0,
-    std_vel: float = 60.0,
-    std_meas: float = 80.0,
+    std_pos: float,
+    std_vel: float,
+    std_meas: float,
 ) -> TriangulationOutput:
-    """Apply per-class RTS smoothing, splitting on gaps longer than ``_MAX_GAP``."""
+    """Apply per-class RTS smoothing, splitting on gaps longer than ``geometry.smoothing.max_gap``."""
+    smooth_cfg = get_config().geometry.smoothing
+    ball_class_name = get_config().classes.ball_class_name
+
     # Gather each class's observations in frame order.
     per_class: dict[int, list[tuple[int, np.ndarray]]] = {}
     class_names: dict[int, str] = {}
@@ -116,13 +115,13 @@ def smooth_triangulation(
     for class_id, observations in per_class.items():
         observations.sort(key=lambda o: o[0])
         name = class_names[class_id]
-        is_ball = name == _BALL_CLASS_NAME
+        is_ball = name == ball_class_name
 
-        # Split into segments wherever the gap exceeds _MAX_GAP.
+        # Split into segments wherever the gap exceeds the configured max_gap.
         segments: list[list[tuple[int, np.ndarray]]] = []
         current = [observations[0]]
         for prev, nxt in zip(observations, observations[1:]):
-            if nxt[0] - prev[0] > _MAX_GAP:
+            if nxt[0] - prev[0] > smooth_cfg.max_gap:
                 segments.append(current)
                 current = [nxt]
             else:
@@ -135,7 +134,9 @@ def smooth_triangulation(
             by_frame = {idx: pos for idx, pos in segment}
             grid = list(range(start, end + 1))
             measurements = [by_frame.get(idx) for idx in grid]
-            smoothed = _smooth_segment(measurements, std_pos, std_vel, std_meas)
+            smoothed = _smooth_segment(
+                measurements, std_pos, std_vel, std_meas, smooth_cfg.gate_chi2
+            )
             for idx, pos in zip(grid, smoothed):
                 if idx not in out_points:
                     continue

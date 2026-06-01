@@ -7,14 +7,11 @@ import numpy as np
 from src.types.detection import BoundingBox
 from src.types.tracking import FrameTrackedDetections, TrackedDetection, TrackingOutput
 
-_MAX_GAP = 5     # frames; gaps > this are NOT bridged
-_EMA_ALPHA = 0.5  # weight of the current observation in the EMA
-
 
 def smooth_tracking_output(
     tracking: TrackingOutput,
-    max_gap: int = _MAX_GAP,
-    ema_alpha: float = _EMA_ALPHA,
+    max_gap: int,
+    ema_alpha: float,
 ) -> TrackingOutput:
     """
     Return a new TrackingOutput with smoothed/interpolated per-track boxes.

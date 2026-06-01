@@ -2,10 +2,10 @@ import cv2
 
 
 def make_clahe(
-    clip_limit: float = 6.0,
-    tile_grid_size: tuple[int, int] = (8, 8),
+    clip_limit: float,
+    tile_grid_size: tuple[int, int],
 ) -> cv2.CLAHE:
-    """Build a CLAHE object configured the same way the MOG2 pipeline expects."""
+    """Build a CLAHE object with the given parameters."""
     return cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
 
 
@@ -14,34 +14,11 @@ def make_morph_kernel(size: int) -> cv2.Mat:
     return cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size))
 
 
-def normalize_illumination(
-        frame: cv2.Mat,
-        clip_limit: float = 6.0,
-        tile_grid_size: tuple[int, int] = (8, 8),
-        *,
-        clahe: cv2.CLAHE | None = None,
-    ) -> cv2.Mat:
-    """
-    Single-frame variant of normalize_illumination.
-    Takes a precomputed CLAHE object so the same instance can be reused across many frames in a fused pipeline.
-    Parameters:
-        - frame: A single video frame in BGR format.
-        - clahe: A precomputed cv2.CLAHE instance (built with cv2.createCLAHE).
-    Returns:
-        A BGR frame with normalized illumination.
-    """
-    # Reuse the caller's CLAHE if one was supplied; otherwise build one on the fly.
-    if clahe is None:
-        clahe = make_clahe(clip_limit, tile_grid_size)
-
-    # Convert the frame from BGR to LAB color space
+def normalize_illumination(frame: cv2.Mat, *, clahe: cv2.CLAHE) -> cv2.Mat:
+    """Apply CLAHE-based illumination normalization to a BGR frame."""
     lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
     l, a, b = cv2.split(lab)
-
-    # Apply CLAHE to the L channel to enhance contrast
     l = clahe.apply(l)
-
-    # Merge the processed L channel back with the original A and B channels, convert back to BGR color space
     return cv2.cvtColor(cv2.merge((l, a, b)), cv2.COLOR_LAB2BGR)
 
 
@@ -78,8 +55,8 @@ def opening_closing(
 
 def refine_blobs(
     mask: cv2.Mat,
-    min_area: int = 500,
-    max_area: int = 10000,
+    min_area: int,
+    max_area: int,
 ) -> cv2.Mat:
     """
     Single-frame variant of refine_blobs. Filters connected components by area in one mask.

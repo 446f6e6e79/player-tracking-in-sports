@@ -21,6 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.calibration.camera_data import CameraData
+from src.config import get_config
 from src.cli import (
     add_force_arg,
     add_max_frames_arg,
@@ -126,7 +127,13 @@ def run_3d_reconstruction_pipeline(
     logger.info("Triangulated %d frames across %s",
                 len(triangulation.frames), triangulation.camera_ids)
     logger.info("Smoothing 3D tracks with forward Kalman filter...")
-    triangulation = smooth_triangulation(triangulation)
+    gs = get_config().geometry.smoothing
+    triangulation = smooth_triangulation(
+        triangulation,
+        std_pos=gs.std_pos,
+        std_vel=gs.std_vel,
+        std_meas=gs.std_meas,
+    )
 
     # 4. Persist the triangulation output (JSON)
     logger.info("Writing triangulation output to %s...", recon.triangulation_json)

@@ -1,5 +1,6 @@
 import numpy as np
 
+from src.config import get_config
 from src.types.detection import BoundingBox
 from src.types.tracking import Detection, TrackedDetection
 from src.tracking.sort_components.appearance import AppearanceEncoder
@@ -27,11 +28,11 @@ class DeepSortTracker:
     def __init__(
         self,
         encoder: AppearanceEncoder,
-        max_iou_distance: float = 0.7,
-        max_appearance_distance: float = 0.2,
-        max_age: int = 30,
-        n_init: int = 3,
-        feature_budget: int = 100,
+        max_iou_distance: float,
+        max_appearance_distance: float,
+        max_age: int,
+        n_init: int,
+        feature_budget: int,
     ) -> None:
         self.encoder = encoder
         self.max_iou_distance = max_iou_distance
@@ -71,12 +72,13 @@ class DeepSortTracker:
             track.predict(self.kf)
 
         # 2. Extract appearance features from all detections.
+        ball_class_name = get_config().classes.ball_class_name
         if detections:
             boxes = np.asarray([d.get_bbox_tuple() for d in detections], dtype=float)
             features = self.encoder(frame, boxes)
-            # Zero out features for "Ball" class to prevent them from interfering with player matching
+            # Zero out features for ball detections to prevent interference with player matching.
             for i, d in enumerate(detections):
-                if d.class_name == "Ball":
+                if d.class_name == ball_class_name:
                     features[i] = 1.0 / features.shape[1] ** 0.5
         else:
             features = np.empty((0, self.encoder.EMBED_DIM), dtype=np.float32)
@@ -113,8 +115,13 @@ class DeepSortTracker:
         for ti in unmatched_tracks:
             self.tracks[ti].mark_missed()
 
-        # Snapshot {track_index -> track_id} BEFORE the prune below shuffles self.tracks indices.
+        # Snapshot stable data BEFORE the prune below reorders self.tracks indices.
         matched_id_by_index = {ti: self.tracks[ti].track_id for ti, _ in matches}
+        # Confirmed-unmatched tracks: capture track objects now so the post-prune loop
+        # doesn't index self.tracks with stale (pre-prune) indices → fixes IndexError.
+        confirmed_unmatched_snapshot = [
+            self.tracks[ti] for ti in um_tracks_a if self.tracks[ti].is_confirmed()
+        ]
 
         # 6. Initiate a new tentative track for each unmatched detection.
         for di in um_dets:
@@ -139,11 +146,8 @@ class DeepSortTracker:
         # (b) Unmatched *confirmed* tracks within max_age — emit the Kalman-predicted
         # box so the player remains visible during short occlusions. The confidence
         # is set to 0 so downstream label-resolution still prefers real detections.
-        confirmed_unmatched = set(um_tracks_a)  # tentative unmatched are in um_tracks_b
-        for ti in confirmed_unmatched:
-            track = self.tracks[ti]
-            if not track.is_confirmed():
-                continue
+        # Uses the pre-prune snapshot to avoid stale index access into self.tracks.
+        for track in confirmed_unmatched_snapshot:
             x1, y1, x2, y2 = track.predicted_xyxy()
             d = track.last_detection
             out.append(TrackedDetection(

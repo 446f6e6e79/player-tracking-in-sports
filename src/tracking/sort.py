@@ -6,9 +6,9 @@ from src.types.tracking import FrameTrackedDetections, TrackingOutput
 def apply_sort(
     detection_output: DetectionOutput,
     *,
-    max_iou_distance: float = 0.8,
-    max_age: int = 60,
-    n_init: int = 2,
+    max_iou_distance: float,
+    max_age: int,
+    n_init: int,
 ) -> TrackingOutput:
     """Run a fresh SORT tracker over a DetectionOutput.
     Parameters:
