@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 import cv2
 import numpy as np
 
@@ -79,3 +81,47 @@ def solve_camera_pose(
     proj, _ = cv2.projectPoints(world_pts, rvec, tvec, mtx, dist)
     residuals_px = np.linalg.norm(proj.reshape(-1, 2) - img_pts, axis=1).astype(np.float32)
     return rvec, tvec, labels, residuals_px
+
+
+def reprojection_rmse(
+    rvec: np.ndarray,
+    tvec: np.ndarray,
+    mtx: np.ndarray,
+    dist: np.ndarray,
+    world_points: np.ndarray,
+    image_points: np.ndarray,
+) -> float:
+    """Return the reprojection RMSE (pixels) for a set of point correspondences."""
+    projected, _ = cv2.projectPoints(
+        np.asarray(world_points, dtype=np.float32).reshape(-1, 1, 3),
+        rvec, tvec, mtx, dist,
+    )
+    errors = np.linalg.norm(projected.reshape(-1, 2) - np.asarray(image_points, dtype=np.float32).reshape(-1, 2), axis=1)
+    return float(np.sqrt(np.mean(errors**2)))
+
+
+def verify_stored_extrinsics(camera_data_path: Path) -> float:
+    """Compute reprojection RMSE (px) for stored extrinsics + saved landmark pixels.
+
+    Raises KeyError if the camera JSON has no ``landmarks_px`` key (saved only
+    after re-running ``calibrate_extrinsics.py`` with the updated script).
+    """
+    with open(camera_data_path) as f:
+        raw = json.load(f)
+    if "landmarks_px" not in raw:
+        raise KeyError(
+            f"{camera_data_path} has no 'landmarks_px'; re-run calibration to enable verification"
+        )
+    mtx = np.array(raw["mtx"], dtype=np.float32)
+    dist = np.array(raw["dist"], dtype=np.float32)
+    rvec = np.array(raw["rvecs"], dtype=np.float32).reshape(3, 1)
+    tvec = np.array(raw["tvecs"], dtype=np.float32).reshape(3, 1)
+    world_pts = []
+    img_pts = []
+    for name, px in raw["landmarks_px"].items():
+        if name in WORLD_LANDMARKS_MM:
+            world_pts.append(WORLD_LANDMARKS_MM[name])
+            img_pts.append(px)
+    if len(world_pts) < 4:
+        raise ValueError("Not enough stored landmarks to compute RMSE (need ≥ 4).")
+    return reprojection_rmse(rvec, tvec, mtx, dist, np.array(world_pts), np.array(img_pts))

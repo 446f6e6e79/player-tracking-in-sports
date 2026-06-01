@@ -56,12 +56,15 @@ class CameraData:
         )
 
     def save_extrinsics(
-        self, 
-        rvec: np.ndarray, 
-        tvec: np.ndarray
+        self,
+        rvec: np.ndarray,
+        tvec: np.ndarray,
+        landmarks_px: dict[str, tuple[float, float]] | None = None,
     ) -> None:
         """
         Overwrite the rvecs/tvecs entries in `self.path`, preserving mtx/dist.
+        If `landmarks_px` is provided, also save the clicked pixel coordinates so
+        that ``verify_stored_extrinsics`` can compute reprojection RMSE later.
         Does not mutate `self` (frozen dataclass) — callers reload if they need
         the updated values.
         """
@@ -69,5 +72,7 @@ class CameraData:
             data = json.load(f)
         data["rvecs"] = np.asarray(rvec, dtype=float).reshape(3, 1).tolist()
         data["tvecs"] = np.asarray(tvec, dtype=float).reshape(3, 1).tolist()
+        if landmarks_px is not None:
+            data["landmarks_px"] = {name: list(px) for name, px in landmarks_px.items()}
         with open(self.path, "w") as f:
             json.dump(data, f)

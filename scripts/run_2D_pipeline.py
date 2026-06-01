@@ -17,7 +17,7 @@ The Pipeline steps are:
 The intermediate detection / tracking videos are off by default — flag them on
 explicitly when needed.
 Usage example:
-    python run_2D_pipeline.py --camera cam_13
+    python scripts/run_2D_pipeline.py --camera cam_13
 """
 import argparse
 from pathlib import Path
@@ -40,6 +40,7 @@ from src.paths import CameraPaths, preflight_output_paths
 from src.paths.model_paths import YOLO_FINE_TUNED_DIR
 from src.tracking.deep_sort import build_deep_sort_tracker, step_deep_sort
 from src.tracking.label_resolution import resolve_track_labels
+from src.tracking.trajectory_smoothing import smooth_tracking_output
 from src.types.detection import DetectionOutput, merge_detections
 from src.types.tracking import FrameTrackedDetections, TrackingOutput
 from src.utils.logging import configure_logging, get_logger
@@ -232,6 +233,9 @@ def run_2d_pipeline(
             _stream_annotated_frames(paths.video, tracking_output, chunk_size, max_frames),
             str(paths.pre_resolution_video), fps=fps,
         )
+
+    logger.info("Smoothing 2D trajectories (gap fill + EMA)...")
+    tracking_output = smooth_tracking_output(tracking_output)
 
     logger.info("Resolving track labels...")
     resolved_output = resolve_track_labels(tracking_output)

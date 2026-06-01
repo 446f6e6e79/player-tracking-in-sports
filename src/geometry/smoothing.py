@@ -1,152 +1,161 @@
+from __future__ import annotations
+import logging
 import numpy as np
 
-from src.types.geometry import FrameTriangulatedPoints, Point3D, TriangulationOutput
+from src.types.geometry import (
+    FrameTriangulatedPoints,
+    Point3D,
+    TriangulationOutput,
+)
 
-# Re-initiate a track's state after it goes missing for more than this many frames.
+logger = logging.getLogger(__name__)
+
 _MAX_GAP = 5
+_BALL_CLASS_NAME = "Ball"
+# Chi-square 0.99 quantile, 3 dof: reject measurements beyond this Mahalanobis
+# distance from the predicted state.
+_GATE_CHI2 = 11.345
 
 
-class KalmanFilter3D:
+def _transition() -> np.ndarray:
+    f = np.eye(6)
+    for i in range(3):
+        f[i, i + 3] = 1.0
+    return f
+
+
+def _process_noise(std_pos: float, std_vel: float) -> np.ndarray:
+    q = np.zeros((6, 6))
+    for i in range(3):
+        q[i, i] = std_pos**2
+        q[i + 3, i + 3] = std_vel**2
+    return q
+
+
+def _measurement_matrix() -> np.ndarray:
+    h = np.zeros((3, 6))
+    h[0, 0] = h[1, 1] = h[2, 2] = 1.0
+    return h
+
+
+def _smooth_segment(
+    measurements: list[np.ndarray | None],
+    std_pos: float,
+    std_vel: float,
+    std_meas: float,
+) -> list[np.ndarray]:
+    """Forward Kalman + RTS backward pass over one contiguous segment.
+
+    ``measurements`` is one entry per consecutive frame (``None`` = gap-filled).
+    The first entry is always a real measurement. Returns the smoothed position
+    (length-3) for every frame in the segment.
     """
-    Forward-only constant-velocity Kalman filter for 3D world-frame points (mm).
-    6D state: (x, y, z, vx, vy, vz). Observation: (x, y, z).
+    f = _transition()
+    h = _measurement_matrix()
+    q = _process_noise(std_pos, std_vel)
+    r = np.eye(3) * (std_meas**2)
 
-    Noise defaults (mm @ ~25 fps):
-      std_pos=30  — triangulation jitter per frame;
-      std_vel=80  — Δv per frame (~2 m/s player sprint);
-      std_meas=50 — measurement uncertainty from triangulation.
-    """
+    n = len(measurements)
+    x_prior = [np.zeros(6) for _ in range(n)]
+    p_prior = [np.eye(6) for _ in range(n)]
+    x_post = [np.zeros(6) for _ in range(n)]
+    p_post = [np.eye(6) for _ in range(n)]
 
-    def __init__(
-        self,
-        std_pos: float = 30.0,
-        std_vel: float = 80.0,
-        std_meas: float = 50.0,
-    ) -> None:
-        ndim, dt = 3, 1.0
-        self._F = np.eye(2 * ndim)
-        for i in range(ndim):
-            self._F[i, ndim + i] = dt
-        self._H = np.eye(ndim, 2 * ndim)
-        self._Q = np.diag(np.array([std_pos**2] * ndim + [std_vel**2] * ndim))
-        self._R = np.diag(np.array([std_meas**2] * ndim))
-        self._P0_diag = np.array([std_pos**2] * ndim + [(2 * std_vel) ** 2] * ndim)
+    x_post[0][:3] = measurements[0]
+    p_post[0] = np.eye(6) * 1000.0
+    x_prior[0] = x_post[0].copy()
+    p_prior[0] = p_post[0].copy()
 
-    def initiate(self, measurement: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        mean = np.r_[np.asarray(measurement, dtype=float), np.zeros(3)]
-        covariance = np.diag(self._P0_diag.copy())
-        return mean, covariance
+    for i in range(1, n):
+        x_prior[i] = f @ x_post[i - 1]
+        p_prior[i] = f @ p_post[i - 1] @ f.T + q
+        z = measurements[i]
+        accept = z is not None
+        if accept:
+            y = z - h @ x_prior[i]
+            s = h @ p_prior[i] @ h.T + r
+            s_inv = np.linalg.inv(s)
+            if float(y @ s_inv @ y) > _GATE_CHI2:
+                accept = False
+        if accept:
+            k = p_prior[i] @ h.T @ s_inv
+            x_post[i] = x_prior[i] + k @ y
+            p_post[i] = (np.eye(6) - k @ h) @ p_prior[i]
+        else:
+            x_post[i] = x_prior[i]
+            p_post[i] = p_prior[i]
 
-    def predict(
-        self, mean: np.ndarray, covariance: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray]:
-        new_mean = self._F @ mean
-        new_cov = self._F @ covariance @ self._F.T + self._Q
-        return new_mean, new_cov
+    x_smooth = [x.copy() for x in x_post]
+    for i in range(n - 2, -1, -1):
+        c = p_post[i] @ f.T @ np.linalg.inv(p_prior[i + 1])
+        x_smooth[i] = x_post[i] + c @ (x_smooth[i + 1] - x_prior[i + 1])
 
-    def update(
-        self,
-        mean: np.ndarray,
-        covariance: np.ndarray,
-        measurement: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        proj_mean = self._H @ mean
-        proj_cov = self._H @ covariance @ self._H.T + self._R
-
-        chol = np.linalg.cholesky(proj_cov)
-        kalman_gain = np.linalg.solve(
-            chol.T, np.linalg.solve(chol, (covariance @ self._H.T).T)
-        ).T
-
-        residual = np.asarray(measurement, dtype=float) - proj_mean
-        new_mean = mean + kalman_gain @ residual
-        new_cov = covariance - kalman_gain @ proj_cov @ kalman_gain.T
-        return new_mean, new_cov
+    return [x[:3].copy() for x in x_smooth]
 
 
 def smooth_triangulation(
     triangulation: TriangulationOutput,
-    *,
     std_pos: float = 30.0,
     std_vel: float = 60.0,
     std_meas: float = 80.0,
-    max_gap: int = _MAX_GAP,
-    fill_gaps: bool = True,
 ) -> TriangulationOutput:
-    """
-    Apply a per-class_id forward Kalman filter to every Point3D in `triangulation`.
-
-    Frames where a class_id is absent can be gap-filled (prediction only) to
-    keep dots visible. After a gap of more than `max_gap` frames the state is
-    dropped and re-initiated on the next observation to avoid stale velocity
-    poisoning. The frame structure is preserved unless `fill_gaps` is True.
-    """
-    kf = KalmanFilter3D(std_pos=std_pos, std_vel=std_vel, std_meas=std_meas)
-    states: dict[int, tuple[np.ndarray, np.ndarray, str]] = {}
-    last_seen: dict[int, int] = {}
-
-    new_frames: list[FrameTriangulatedPoints] = []
-    for frame in sorted(triangulation.frames, key=lambda f: f.frame_index):
-        fi = frame.frame_index
-        smoothed_points: list[Point3D] = []
-        observed_ids: set[int] = set()
+    """Apply per-class RTS smoothing, splitting on gaps longer than ``_MAX_GAP``."""
+    # Gather each class's observations in frame order.
+    per_class: dict[int, list[tuple[int, np.ndarray]]] = {}
+    class_names: dict[int, str] = {}
+    for frame in triangulation.frames:
         for p in frame.points:
-            cid = p.class_id
-            meas = np.array([p.x, p.y, p.z], dtype=float)
-            observed_ids.add(cid)
-
-            gap = fi - last_seen[cid] if cid in last_seen else max_gap + 1
-            if cid not in states or gap > max_gap:
-                mean, cov = kf.initiate(meas)
-                sm = meas
-            else:
-                mean, cov = kf.predict(*states[cid][:2])
-                mean, cov = kf.update(mean, cov, meas)
-                sm = mean[:3]
-
-            states[cid] = (mean, cov, p.class_name)
-            last_seen[cid] = fi
-            smoothed_points.append(
-                Point3D(
-                    x=float(sm[0]),
-                    y=float(sm[1]),
-                    z=float(sm[2]),
-                    class_id=p.class_id,
-                    class_name=p.class_name,
-                )
+            class_names[p.class_id] = p.class_name
+            per_class.setdefault(p.class_id, []).append(
+                (frame.frame_index, np.array([p.x, p.y, p.z], dtype=np.float64))
             )
 
-        if fill_gaps:
-            expired: list[int] = []
-            for cid, (mean, cov, class_name) in list(states.items()):
-                if cid in observed_ids:
+    # frame_index -> list of smoothed Point3D
+    out_points: dict[int, list[Point3D]] = {f.frame_index: [] for f in triangulation.frames}
+
+    for class_id, observations in per_class.items():
+        observations.sort(key=lambda o: o[0])
+        name = class_names[class_id]
+        is_ball = name == _BALL_CLASS_NAME
+
+        # Split into segments wherever the gap exceeds _MAX_GAP.
+        segments: list[list[tuple[int, np.ndarray]]] = []
+        current = [observations[0]]
+        for prev, nxt in zip(observations, observations[1:]):
+            if nxt[0] - prev[0] > _MAX_GAP:
+                segments.append(current)
+                current = [nxt]
+            else:
+                current.append(nxt)
+        segments.append(current)
+
+        for segment in segments:
+            start = segment[0][0]
+            end = segment[-1][0]
+            by_frame = {idx: pos for idx, pos in segment}
+            grid = list(range(start, end + 1))
+            measurements = [by_frame.get(idx) for idx in grid]
+            smoothed = _smooth_segment(measurements, std_pos, std_vel, std_meas)
+            for idx, pos in zip(grid, smoothed):
+                if idx not in out_points:
                     continue
-                gap = fi - last_seen.get(cid, fi)
-                if gap > max_gap:
-                    expired.append(cid)
-                    continue
-                mean, cov = kf.predict(mean, cov)
-                states[cid] = (mean, cov, class_name)
-                smoothed_points.append(
+                z = 0.0 if not is_ball else float(pos[2])
+                out_points[idx].append(
                     Point3D(
-                        x=float(mean[0]),
-                        y=float(mean[1]),
-                        z=float(mean[2]),
-                        class_id=cid,
-                        class_name=class_name,
+                        x=float(pos[0]),
+                        y=float(pos[1]),
+                        z=z,
+                        class_id=class_id,
+                        class_name=name,
                     )
                 )
 
-            for cid in expired:
-                states.pop(cid, None)
-                last_seen.pop(cid, None)
-
-        new_frames.append(
-            FrameTriangulatedPoints(frame_index=fi, points=smoothed_points)
-        )
-
+    smoothed_frames = [
+        FrameTriangulatedPoints(frame_index=f.frame_index, points=out_points[f.frame_index])
+        for f in triangulation.frames
+    ]
     return TriangulationOutput(
+        frames=smoothed_frames,
         fps=triangulation.fps,
         camera_ids=triangulation.camera_ids,
-        frames=new_frames,
     )

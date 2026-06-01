@@ -5,6 +5,8 @@ from src.calibration.camera_data import CameraData
 from src.types.geometry import FrameRectifiedPoints, RectifiedPoint, RectifiedPointsOutput
 from src.types.tracking import TrackingOutput
 
+_BALL_CLASS_ID = 0
+
 
 def rectify_points(points: np.ndarray, mtx: np.ndarray, dist: np.ndarray) -> np.ndarray:
     """
@@ -20,41 +22,45 @@ def rectify_points(points: np.ndarray, mtx: np.ndarray, dist: np.ndarray) -> np.
     """
     if points.size == 0:
         return np.empty((0, 2), dtype=np.float32)
-    # OpenCV expects points in shape (N, 1, 2) for undistortPoints, and outputs the same shape.
     pts = np.asarray(points, dtype=np.float32).reshape(-1, 1, 2)
-    
     rectified = cv2.undistortPoints(pts, mtx, dist, P=mtx)
     return rectified.reshape(-1, 2)
 
 
 def rectify_tracking_output(tracking: TrackingOutput, camera: CameraData) -> RectifiedPointsOutput:
     """
-    Rectify the bounding box centers from a TrackingOutput using camera calibration.
+    Rectify the detection reference pixels from a TrackingOutput using camera calibration.
+
+    The ball (class_id == 0) uses its bbox centre; all other detections (players)
+    use their bbox bottom-centre — the ground-contact point — so they can be
+    projected onto the court floor plane downstream.
+
     Parameters:
         - tracking (TrackingOutput): The input tracking output containing frames and detections.
         - camera (CameraData): Pre-loaded calibration for the camera that produced `tracking`.
     Returns:
         - RectifiedPointsOutput: A new output containing rectified points for each detection.
     """
-    # Collect all bounding box centers across all frames
-    centers: list[tuple[float, float]] = []
+    # Choose the reference pixel per detection (ball → centre; players → bottom-centre).
+    ref_pixels: list[tuple[float, float]] = []
     for frame in tracking.frames:
         for det in frame.detections:
-            centers.append(det.bbox.get_center())
+            if det.class_id == _BALL_CLASS_ID:
+                ref_pixels.append(det.bbox.get_center())
+            else:
+                ref_pixels.append(det.bbox.get_bottom_center())
 
-    # Rectify all centers in a single batch for efficiency
-    centers_array = np.array(centers, dtype=np.float32) if centers else np.empty((0, 2), dtype=np.float32)
-    rectified_array = rectify_points(centers_array, camera.mtx, camera.dist)
+    # Rectify all reference pixels in a single batch for efficiency.
+    pts_array = np.array(ref_pixels, dtype=np.float32) if ref_pixels else np.empty((0, 2), dtype=np.float32)
+    rectified_array = rectify_points(pts_array, camera.mtx, camera.dist)
 
-    # Reconstruct the output frames with rectified points, preserving the original structure
+    # Reconstruct the output frames with rectified points, preserving the original structure.
     frames: list[FrameRectifiedPoints] = []
-    base_frame_index = 0
-
+    offset = 0
     for frame in tracking.frames:
         points: list[RectifiedPoint] = []
-
-        for offset, det in enumerate(frame.detections):
-            x_rect, y_rect = rectified_array[base_frame_index + offset]
+        for det in frame.detections:
+            x_rect, y_rect = rectified_array[offset]
             points.append(RectifiedPoint(
                 x=float(x_rect),
                 y=float(y_rect),
@@ -63,7 +69,7 @@ def rectify_tracking_output(tracking: TrackingOutput, camera: CameraData) -> Rec
                 class_name=det.class_name,
                 track_id=det.track_id,
             ))
-        base_frame_index += len(frame.detections)
+            offset += 1
         frames.append(FrameRectifiedPoints(frame_index=frame.frame_index, points=points))
 
     return RectifiedPointsOutput(

@@ -1,5 +1,6 @@
 import numpy as np
 
+from src.types.detection import BoundingBox
 from src.types.tracking import Detection, TrackedDetection
 from src.tracking.sort_components.appearance import AppearanceEncoder
 from src.tracking.sort_components.kalman_filter import KalmanFilter
@@ -122,7 +123,8 @@ class DeepSortTracker:
         # 7. Drop all tracks marked as deleted (too old, never confirmed, or tentative one-frame-old).
         self.tracks = [t for t in self.tracks if not t.is_deleted()]
 
-        # Build the per-frame output: matched detections re-issued with their stable track_id.
+        # Build the per-frame output.
+        # (a) Matched detections — re-issued with their stable track_id.
         out: list[TrackedDetection] = []
         for ti, di in matches:
             d = detections[di]
@@ -133,6 +135,25 @@ class DeepSortTracker:
                 class_name=d.class_name,
                 track_id=matched_id_by_index[ti],
             ))
+
+        # (b) Unmatched *confirmed* tracks within max_age — emit the Kalman-predicted
+        # box so the player remains visible during short occlusions. The confidence
+        # is set to 0 so downstream label-resolution still prefers real detections.
+        confirmed_unmatched = set(um_tracks_a)  # tentative unmatched are in um_tracks_b
+        for ti in confirmed_unmatched:
+            track = self.tracks[ti]
+            if not track.is_confirmed():
+                continue
+            x1, y1, x2, y2 = track.predicted_xyxy()
+            d = track.last_detection
+            out.append(TrackedDetection(
+                bbox=BoundingBox(x1=x1, y1=y1, x2=x2, y2=y2),
+                confidence=0.0,
+                class_id=d.class_id,
+                class_name=d.class_name,
+                track_id=track.track_id,
+            ))
+
         return out
 
     def _initiate_track(self, detection: Detection, feature: np.ndarray) -> None:

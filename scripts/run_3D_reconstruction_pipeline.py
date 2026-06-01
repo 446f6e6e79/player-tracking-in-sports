@@ -9,8 +9,8 @@ The pipeline steps are:
        camera A's source video, and a 3D matplotlib animation MP4.
 
 Usage examples:
-    python scripts/run_3D_reconstruction_pipeline.py --cameras cam_4 cam_13
-    python scripts/run_3D_reconstruction_pipeline.py --cameras cam_4 cam_13 \\
+    python scripts/run_3D_reconstruction_pipeline.py --cameras cam_4 cam_13 cam_2
+    python scripts/run_3D_reconstruction_pipeline.py --cameras cam_4 cam_13 cam_2 \\
         --render-minimap --overlay-video --render-3d-graph
 """
 import argparse

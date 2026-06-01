@@ -17,6 +17,10 @@ class BoundingBox:
         """Returns the geometric center of the bounding box as (cx, cy)."""
         return ((self.x1 + self.x2) / 2.0, (self.y1 + self.y2) / 2.0)
 
+    def get_bottom_center(self) -> tuple[float, float]:
+        """Returns the midpoint of the bottom edge as (cx, y2) — the ground-contact point."""
+        return ((self.x1 + self.x2) / 2.0, self.y2)
+
 
 @dataclass
 class Detection(LabeledObject):
