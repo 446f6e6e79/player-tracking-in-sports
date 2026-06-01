@@ -123,6 +123,24 @@ def stream_frame_chunks(
         cap.release()
 
 
+def iter_video_frames(
+    video_path: str | Path,
+    max_frames: int | None = None,
+) -> Iterator[np.ndarray]:
+    """Yield BGR frames one at a time without loading the full video into memory."""
+    cap = open_video(str(video_path))
+    try:
+        count = 0
+        while max_frames is None or count < max_frames:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            yield frame
+            count += 1
+    finally:
+        cap.release()
+
+
 def load_first_frame(video_path: str | Path) -> np.ndarray:
     """Read and return the first frame of a video as a BGR ndarray.
 

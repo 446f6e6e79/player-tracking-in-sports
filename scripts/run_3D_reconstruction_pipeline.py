@@ -34,7 +34,6 @@ from src.geometry.triangulation import triangulate_rectified_outputs
 from src.paths import CameraPaths, ReconstructionPaths, preflight_output_paths
 from src.types.tracking import TrackingOutput
 from src.utils.logging import configure_logging, get_logger
-from src.utils.video_io import load_video_frames
 from src.visualization.scene_3d import produce_3d_scene_video
 from src.visualization.video_render import (
     produce_minimap_video,
@@ -148,16 +147,12 @@ def run_3d_reconstruction_pipeline(
         overlay_source = cam_paths[cam_a].video
         if not overlay_source.exists():
             raise FileNotFoundError(f"Video not found: {overlay_source}")
-        logger.info("Loading %s frames from %s for radar overlay...",
-                    cam_a, overlay_source)
-        frames_color, fps = load_video_frames(overlay_source, max_frames=max_frames)
-        logger.info("Loaded %d frames at %.2f fps", len(frames_color), fps)
-
         logger.info("Saving radar overlay video to %s...", recon.overlay_video)
         produce_radar_overlay_video(
-            frames_color,
+            str(overlay_source),
             triangulation,
             str(recon.overlay_video),
+            max_frames=max_frames,
         )
 
     if render_3d_graph:
