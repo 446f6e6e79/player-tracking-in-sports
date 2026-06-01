@@ -42,7 +42,7 @@ from src.paths.model_paths import YOLO_FINE_TUNED_DIR
 from src.tracking.deep_sort import build_deep_sort_tracker, step_deep_sort
 from src.tracking.label_resolution import resolve_track_labels
 from src.tracking.trajectory_smoothing import smooth_tracking_output
-from src.types.detection import DetectionOutput, merge_detections
+from src.types.detection import DetectionOutput, FrameDetections, merge_detections
 from src.types.tracking import FrameTrackedDetections, TrackingOutput
 from src.utils.logging import configure_logging, get_logger
 from src.utils.video_io import stream_frame_chunks, video_fps
@@ -84,15 +84,23 @@ def _detect_on_chunk(
     fps: float,
     model_name: str,
     frame_index_offset: int,
-) -> DetectionOutput:
-    """Run the two-pass YOLO + merge + NMS pipeline on a single chunk of frames."""
+) -> tuple[DetectionOutput, list[list]]:
+    """Run the two-pass YOLO + merge + NMS pipeline on a single chunk of frames.
+
+    Returns:
+        - main DetectionOutput (high-confidence detections, NMS-merged with ball)
+        - per-frame list of low-confidence player detections for ByteTrack second pass
+    """
     cfg = get_config()
     tp = cfg.detection.two_pass
+    high_threshold = cfg.detection.yolo.conf_threshold
 
+    # Player pass: run at the lower ByteTrack threshold so we get both sets in one
+    # YOLO call, then split by confidence in Python.
     logger.info("Running player pass...")
     raw_player = run_yolo_detection(
         yolo_model, frames,
-        conf_threshold=cfg.detection.yolo.conf_threshold,
+        conf_threshold=tp.player_low_conf_threshold,
         inference_size=tp.player_inference_size,
         iou_threshold=cfg.detection.yolo.iou_threshold,
         batch_size=yolo_batch_size,
@@ -108,7 +116,7 @@ def _detect_on_chunk(
         class_ids=[cfg.classes.ball_class_id],
     )
     logger.info("Processing raw detections...")
-    player_out = yolo_to_detection_output(
+    all_player_out = yolo_to_detection_output(
         raw_player, yolo_model,
         camera_id=camera, fps=fps, source=model_name,
         frame_index_offset=frame_index_offset,
@@ -118,9 +126,24 @@ def _detect_on_chunk(
         camera_id=camera, fps=fps, source=model_name,
         frame_index_offset=frame_index_offset,
     )
+
+    # Split player detections into high-conf (main pipeline) and low-conf (ByteTrack).
+    high_conf_frames = []
+    low_conf_per_frame = []
+    for fd in all_player_out.frames:
+        high_dets = [d for d in fd.detections if d.confidence >= high_threshold]
+        low_dets = [d for d in fd.detections if d.confidence < high_threshold]
+        high_conf_frames.append(FrameDetections(frame_index=fd.frame_index, detections=high_dets))
+        low_conf_per_frame.append(low_dets)
+
+    player_out = DetectionOutput(
+        source=all_player_out.source, camera_id=all_player_out.camera_id,
+        fps=all_player_out.fps, frames=high_conf_frames,
+    )
+
     logger.info("Merging player and ball detections and applying NMS...")
     merged = merge_detections(player_out, ball_out)
-    return class_independent_nms(merged, iou_threshold=tp.merge_nms_iou)
+    return class_independent_nms(merged, iou_threshold=tp.merge_nms_iou), low_conf_per_frame
 
 
 def _stream_annotated_frames(
@@ -203,7 +226,7 @@ def run_2d_pipeline(
         chunk_len = len(chunk)
         logger.info("Chunk @ frame %d (%d frames)", start, chunk_len)
 
-        chunk_dets = _detect_on_chunk(
+        chunk_dets, low_conf_by_frame = _detect_on_chunk(
             yolo_model, chunk,
             player_classes=player_classes,
             yolo_batch_size=resolved_batch,
@@ -214,7 +237,9 @@ def run_2d_pipeline(
 
         for offset, frame in enumerate(chunk):
             fd = chunk_dets.frames[offset]
-            tracking_frames.append(step_deep_sort(tracker, fd, frame))
+            tracking_frames.append(
+                step_deep_sort(tracker, fd, frame, low_conf_detections=low_conf_by_frame[offset])
+            )
         total_frames += chunk_len
         del chunk
 

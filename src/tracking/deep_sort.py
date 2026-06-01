@@ -42,9 +42,13 @@ def step_deep_sort(
     tracker: DeepSortTracker,
     frame_detections: FrameDetections,
     frame: np.ndarray,
+    low_conf_detections: list | None = None,
 ) -> FrameTrackedDetections:
     """Run a single DeepSORT update on one frame. Tracker state advances in place."""
-    tracked = tracker.update(list(frame_detections.detections), frame)
+    tracked = tracker.update(
+        list(frame_detections.detections), frame,
+        low_conf_detections=low_conf_detections,
+    )
     return FrameTrackedDetections(frame_index=frame_detections.frame_index, detections=tracked)
 
 

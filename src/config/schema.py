@@ -31,6 +31,7 @@ class TwoPassConfig(BaseModel):
     player_inference_size: int
     ball_inference_size: int
     ball_conf_threshold: float
+    player_low_conf_threshold: float
     merge_nms_iou: float
 
 
@@ -62,8 +63,12 @@ class DeepSortConfig(BaseModel):
     max_iou_distance: float
     max_appearance_distance: float
     max_age: int
+    coast_age: int
     n_init: int
     feature_budget: int
+    coast_max_iou: float
+    dead_gallery_max_age: int
+    dead_gallery_max_dist: float
 
 
 class SortConfig(BaseModel):

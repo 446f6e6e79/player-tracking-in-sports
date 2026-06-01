@@ -24,6 +24,7 @@ detection:
     player_inference_size: 1280
     ball_inference_size: 1600
     ball_conf_threshold: 0.2
+    player_low_conf_threshold: 0.15  # ByteTrack second pass; must be < yolo.conf_threshold
     merge_nms_iou: 0.75
   nms:
     iou_threshold: 0.5
@@ -40,9 +41,13 @@ tracking:
   deep_sort:
     max_iou_distance: 0.7
     max_appearance_distance: 0.2
-    max_age: 30
+    max_age: 60   # frames a track stays alive for re-matching after going missing
+    coast_age: 5  # frames to emit a predicted box; must be <= max_age
     n_init: 2
     feature_budget: 100
+    coast_max_iou: 0.3
+    dead_gallery_max_age: 150   # frames; ~5s at 30fps — window for re-ID resurrection
+    dead_gallery_max_dist: 0.25 # cosine distance ceiling for gallery re-ID match
   sort:
     max_iou_distance: 0.8
     max_age: 60
