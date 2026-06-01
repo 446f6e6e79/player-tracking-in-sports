@@ -120,7 +120,9 @@ class DeepSortTracker:
         # Confirmed-unmatched tracks: capture track objects now so the post-prune loop
         # doesn't index self.tracks with stale (pre-prune) indices → fixes IndexError.
         confirmed_unmatched_snapshot = [
-            self.tracks[ti] for ti in um_tracks_a if self.tracks[ti].is_confirmed()
+            self.tracks[ti] for ti in um_tracks_a
+            if self.tracks[ti].is_confirmed()
+            and self.tracks[ti].last_detection.class_name != ball_class_name
         ]
 
         # 6. Initiate a new tentative track for each unmatched detection.
