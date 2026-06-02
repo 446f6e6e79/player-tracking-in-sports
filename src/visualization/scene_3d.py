@@ -14,6 +14,10 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  registers 3D projection
 
 from src.geometry import court as cp
 from src.types.geometry import FrameTriangulatedPoints, Point3D, TriangulationOutput
+from src.utils.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 
 # World-frame axis bounds (meters) — court extents plus 1 m padding, Z up to 4 m.
@@ -32,7 +36,7 @@ def _bgr_to_rgb_unit(bgr: tuple[int, int, int]) -> tuple[float, float, float]:
 def _draw_court_floor(ax: Axes3D) -> None:
     """Stroke the FIBA court polylines onto z=0 of the 3D axes."""
     for line in cp.court_lines():
-        pts_m = line.pts / 1000.0
+        pts_m = line.pts / cp.MM_PER_METER
         xs = list(pts_m[:, 0])
         ys = list(pts_m[:, 1])
         zs = list(pts_m[:, 2])
@@ -42,7 +46,7 @@ def _draw_court_floor(ax: Axes3D) -> None:
             zs.append(zs[0])
         ax.plot(xs, ys, zs, color=(0.6, 0.6, 0.6), linewidth=0.8)
     for rim_x in (cp.LEFT_RIM_X, cp.RIGHT_RIM_X):
-        ax.scatter([rim_x / 1000.0], [0.0], [3.05],
+        ax.scatter([rim_x / cp.MM_PER_METER], [0.0], [3.05],
                    color=(1.0, 0.2, 0.2), s=20, depthshade=False)
 
 
@@ -59,9 +63,9 @@ def _scatter_frame(ax: Axes3D, frame: FrameTriangulatedPoints) -> None:
     for kind, pts in buckets.items():
         if not pts:
             continue
-        xs = [p.x / 1000.0 for p in pts]
-        ys = [p.y / 1000.0 for p in pts]
-        zs = [p.z / 1000.0 for p in pts]
+        xs = [p.x / cp.MM_PER_METER for p in pts]
+        ys = [p.y / cp.MM_PER_METER for p in pts]
+        zs = [p.z / cp.MM_PER_METER for p in pts]
         colors = [_bgr_to_rgb_unit(p.color) for p in pts]
         size = _BALL_SIZE if kind == "ball" else _PLAYER_SIZE
         marker = "o" if kind == "ball" else "^"
@@ -164,4 +168,4 @@ def produce_3d_scene_video(
     finally:
         plt.close(fig)
         plt.switch_backend(original_backend)
-    print(f"Video saved successfully at: {output_path}")
+    logger.info("Video saved successfully at: %s", output_path)

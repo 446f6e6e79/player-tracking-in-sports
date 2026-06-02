@@ -113,10 +113,10 @@ class Track:
             - detection: The Detection that matched this track (carries class_id / class_name).
             - feature: Optional appearance feature vector for this detection (L2-normalized).
         """
-        # Convert the detection's bounding box to the measurement space (cx, cy, a, h)
         measurement = xyxy_to_xyah(detection.get_bbox_tuple())
-        # Update the mean and covariance using the Kalman filter's update step with the new measurement
-        self.mean, self.covariance = kf.update(self.mean, self.covariance, measurement)
+        self.mean, self.covariance = kf.update(
+            self.mean, self.covariance, measurement, detection.confidence
+        )
 
         self.hits += 1
         self.time_since_update = 0

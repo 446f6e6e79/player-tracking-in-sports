@@ -74,9 +74,15 @@ WORLD_LANDMARKS_MM: dict[str, np.ndarray] = {
 # Source of truth for the named landmark set. Click order = insertion order.
 LANDMARKS: tuple[str, ...] = tuple(WORLD_LANDMARKS_MM)
 
+# Public court-geometry constants — single source of truth for callers outside
+# this module (visualization, calibration UI, scene renderers).
+COURT_HALF_LENGTH_MM = 14000.0  # Half the length of the FIBA court (mm)
+COURT_HALF_WIDTH_MM = 7500.0    # Half the width of the FIBA court (mm)
+MM_PER_METER = 1000.0           # Scalar used by renderers that work in meters.
+
 # Court line primitives (used for rendering)
-_HALF_LEN = 14000.0             # Half the length of the court (mm)
-_HALF_WID = 7500.0              # Half the width of the court (mm)
+_HALF_LEN = COURT_HALF_LENGTH_MM
+_HALF_WID = COURT_HALF_WIDTH_MM
 _LANE_HALF_W = 2450.0           # Half the width of the free-throw lane (mm)
 _LANE_X_INNER = 8200.0          # X coordinate of the inner edge of the ft line (mm)
 _THREEPT_R = 6750.0             # Radius of the three-point arc from the rim center (mm)

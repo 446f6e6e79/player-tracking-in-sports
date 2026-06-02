@@ -103,25 +103,30 @@ class KalmanFilter:
         return new_mean, new_cov
 
     def project(
-        self, 
-        mean: np.ndarray, 
-        covariance: np.ndarray
+        self,
+        mean: np.ndarray,
+        covariance: np.ndarray,
+        confidence: float = 1.0,
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Project state into measurement space (and add measurement noise R).
         Returns the predicted measurement and its innovation covariance S.
+
+        NSA scaling: R is scaled by (1 - confidence)^2 so high-confidence
+        detections pull the state more strongly (less measurement noise).
         """
         h = mean[3]
-        # Define the measurement noise covariance R, which models the uncertainty in the measurements.
+        # Scale measurement noise by detection uncertainty; floor at 0.01 to
+        # avoid a singular R when confidence ≈ 1.
+        noise_scale = max(1.0 - confidence, 0.01)
         std = [
-            self._std_weight_position * h,
-            self._std_weight_position * h,
-            1e-1,
-            self._std_weight_position * h,
+            noise_scale * self._std_weight_position * h,
+            noise_scale * self._std_weight_position * h,
+            noise_scale * 1e-1,
+            noise_scale * self._std_weight_position * h,
         ]
         R = np.diag(np.square(std))
 
-        # Project the mean and covariance into measurement space using the measurement matrix H.
         proj_mean = self._H @ mean
         proj_cov = self._H @ covariance @ self._H.T + R
         return proj_mean, proj_cov
@@ -131,6 +136,7 @@ class KalmanFilter:
         mean: np.ndarray,
         covariance: np.ndarray,
         measurement: np.ndarray,
+        confidence: float = 1.0,
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Standard Kalman update. Given a predicted mean and covariance,
@@ -148,12 +154,12 @@ class KalmanFilter:
             - mean: The predicted state mean (8D).
             - covariance: The predicted state covariance (8x8).
             - measurement: The new measurement (4D).
+            - confidence: Detection confidence in [0, 1] for NSA noise scaling.
         Returns:
             - new_mean: The updated state mean after incorporating the measurement.
             - new_cov: The updated state covariance after incorporating the measurement.
         """
-        # Map the predicted mean and covariance into measurement space to get the expected measurement and its covariance.
-        proj_mean, proj_cov = self.project(mean, covariance)
+        proj_mean, proj_cov = self.project(mean, covariance, confidence)
 
         # Solve K^T from S K^T = (P H^T)^T using Cholesky-factored S.
         chol = np.linalg.cholesky(proj_cov)

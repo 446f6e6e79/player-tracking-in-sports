@@ -17,6 +17,10 @@ class BoundingBox:
         """Returns the geometric center of the bounding box as (cx, cy)."""
         return ((self.x1 + self.x2) / 2.0, (self.y1 + self.y2) / 2.0)
 
+    def get_bottom_center(self) -> tuple[float, float]:
+        """Returns the midpoint of the bottom edge as (cx, y2) — the ground-contact point."""
+        return ((self.x1 + self.x2) / 2.0, self.y2)
+
 
 @dataclass
 class Detection(LabeledObject):
@@ -72,6 +76,19 @@ class DetectionOutput:
     fps: float                    # Frames per second of the original video
     frames: list[FrameDetections] = field(default_factory=list)
 
+    def with_frames(self, frames: list[FrameDetections]) -> "DetectionOutput":
+        """Return a copy of this output with `frames` swapped in.
+
+        Used by transforms (NMS, merging, etc.) that produce a new per-frame
+        detection list while preserving source/camera/fps metadata.
+        """
+        return DetectionOutput(
+            source=self.source,
+            camera_id=self.camera_id,
+            fps=self.fps,
+            frames=frames,
+        )
+
 
 def merge_detections(first: 'DetectionOutput', *rest: 'DetectionOutput') -> 'DetectionOutput':
     """
@@ -104,9 +121,4 @@ def merge_detections(first: 'DetectionOutput', *rest: 'DetectionOutput') -> 'Det
             detections.extend(other.frames[i].detections)
         merged_frames.append(FrameDetections(frame_index=frame_first.frame_index, detections=detections))
 
-    return DetectionOutput(
-        source=first.source,
-        camera_id=first.camera_id,
-        fps=first.fps,
-        frames=merged_frames,
-    )
+    return first.with_frames(merged_frames)

@@ -1,4 +1,5 @@
 from collections import defaultdict
+from typing import Iterable
 
 import numpy as np
 
@@ -10,6 +11,11 @@ from src.types.evaluation import (
     TrajectoryMetrics,
 )
 from src.geometry.triangulation import project_points
+
+
+def _index_points_by_frame(frames: Iterable) -> dict[int, list]:
+    """Map `frame_index` → `points` for any sequence of rectified-output frames."""
+    return {f.frame_index: f.points for f in frames}
 
 
 def compute_reprojection_metrics(
@@ -30,7 +36,7 @@ def compute_reprojection_metrics(
     """
     # Build indexes by actual frame_index so GT and triangulation stay aligned
     # even when the triangulation sequence contains every video frame.
-    annotated_index = {f.frame_index: f.points for f in tracking_output.frames}
+    annotated_index = _index_points_by_frame(tracking_output.frames)
     # Compute reprojection error for each matched pair of 3D point and annotated 2D point.
     all_errors: list[float] = []
 
@@ -80,9 +86,9 @@ def compute_trajectory_metrics(
     Returns:
         TrajectoryMetrics aggregated over all matched class_name trajectory pairs.
     """
-    # Build indexes by actual frame_index so GT and triangulation stay aligned.
-    annotated_index    = {f.frame_index: f.points for f in tracking_output.frames}
-    triangulated_index = {f.frame_index: f.points for f in triangulations.frames}
+    # Build the GT index by absolute frame_index so triangulation and GT stay
+    # aligned even when the triangulation sequence covers every video frame.
+    annotated_index = _index_points_by_frame(tracking_output.frames)
 
     # Build trajectory maps for triangulated and ground truth points.
     triangulated_traj: dict[str, list[tuple[int, float, float]]] = defaultdict(list)
@@ -90,11 +96,10 @@ def compute_trajectory_metrics(
 
     # Iterate through triangulated frames and project points into pixel space, building trajectories keyed by class_name.
     for frame in triangulations.frames:
-        triangulated_points = triangulated_index.get(frame.frame_index, [])
-        if triangulated_points:
-            world_pts = np.array([[p.x, p.y, p.z] for p in triangulated_points], dtype=np.float32)
+        if frame.points:
+            world_pts = np.array([[p.x, p.y, p.z] for p in frame.points], dtype=np.float32)
             pixels    = project_points(world_pts, cam)
-            for i, pt in enumerate(triangulated_points):
+            for i, pt in enumerate(frame.points):
                 triangulated_traj[pt.class_name].append((frame.frame_index, float(pixels[i, 0]), float(pixels[i, 1])))
         for d in annotated_index.get(frame.frame_index, []):
             gt_traj[d.class_name].append((frame.frame_index, float(d.x), float(d.y)))

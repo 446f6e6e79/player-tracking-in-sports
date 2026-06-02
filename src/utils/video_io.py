@@ -1,8 +1,14 @@
 import os
+from collections.abc import Iterator
 from pathlib import Path
 
 import cv2
 import numpy as np
+
+from src.utils.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 
 def open_video(video_path: str) -> cv2.VideoCapture:
@@ -26,36 +32,113 @@ def open_video(video_path: str) -> cv2.VideoCapture:
 
 def get_frames(
     cap: cv2.VideoCapture,
-    max_frames: int = None,
-    to_gray: bool = False
-) -> tuple[list, list]:
-    """
-    Given a VideoCapture object, get the frames from the video and return them as lists of color and grayscale frames.
+    max_frames: int | None = None,
+) -> list[np.ndarray]:
+    """Read color frames from `cap` and return them as a list of BGR ndarrays.
+
     Parameters:
-        - cap (cv2.VideoCapture): The VideoCapture object to read from.
-        - max_frames (int, optional): The maximum number of frames to read. If None, reads all frames.
-        - to_gray (bool, optional): Whether to convert frames to grayscale. Default is False.
-    Returns:
-        - frames_color (list): A list of color frames read from the video.
-        - frames_gray (list): A list of grayscale frames read from the video (empty if to_gray is False).
+        - cap: the VideoCapture object to read from.
+        - max_frames: stop after this many frames; None reads to end of stream.
     """
-
-    frames_color = []
-    frames_gray = []
+    frames: list[np.ndarray] = []
     count = 0
-
-    # Read frames from the video until the end or until max_frames is reached
     while max_frames is None or count < max_frames:
         ret, frame = cap.read()
-        # If ret is False, it means we have reached the end of the video or there was an error reading a frame
         if not ret:
             break
-        frames_color.append(frame)
-        # If to_gray is True, convert the frame to grayscale and add it to the frames_gray list
-        if to_gray:
-            frames_gray.append(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
+        frames.append(frame)
         count += 1
-    return frames_color, frames_gray
+    return frames
+
+
+def load_video_frames(
+    video_path: str | Path,
+    max_frames: int | None = None,
+) -> tuple[list[np.ndarray], float]:
+    """Open a video, decode all (or `max_frames`) frames, return `(frames, fps)`.
+
+    Wraps the common `open_video` + `get_frames` + `cap.get(FPS)` + release dance
+    that both pipeline scripts duplicate.
+    """
+    cap = open_video(str(video_path))
+    try:
+        frames = get_frames(cap, max_frames=max_frames)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+    finally:
+        cap.release()
+    return frames, fps
+
+
+def video_fps(video_path: str | Path) -> float:
+    """Return the frame rate reported by the video file at `video_path`."""
+    cap = open_video(str(video_path))
+    try:
+        return cap.get(cv2.CAP_PROP_FPS)
+    finally:
+        cap.release()
+
+
+def stream_frame_chunks(
+    video_path: str | Path,
+    chunk_size: int,
+    max_frames: int | None = None,
+) -> Iterator[tuple[int, list[np.ndarray]]]:
+    """
+    Stream a video as chunks of frames without ever holding the full video in RAM.
+    Parameters:
+        - video_path (str | Path): The path to the video file.
+        - chunk_size (int): The number of frames to include in each chunk.
+        - max_frames (int | None): The maximum number of frames to read from the video. If None, reads until the end of the video.
+    Yields: A tuple containing:
+        - start_index (int): The absolute index of the first frame in the current chunk.
+        - chunk (list[np.ndarray]): A list of frames in the current chunk.
+    """
+    if chunk_size < 1:
+        raise ValueError(f"chunk_size must be >= 1, got {chunk_size}")
+
+    cap = open_video(str(video_path))
+    try:
+        produced = 0                    # Count of frames yielded so far in the current stream.
+        start_index = 0                 # Absolute index of the first frame in the current chunk.
+        chunk: list[np.ndarray] = []    # List of collected frames for the current chunk.
+        while True:
+            # Check for max_frames at the start of the loop to avoid yielding an extra chunk after reaching the limit.
+            if max_frames is not None and produced >= max_frames:
+                break
+
+            # Read a single frame from the video and check if it was successful.
+            ret, frame = cap.read()
+            if not ret:
+                break
+            chunk.append(frame)
+            produced += 1
+            # If we've collected enough frames for a full chunk, yield it and reset for the next chunk.
+            if len(chunk) >= chunk_size:
+                yield start_index, chunk
+                start_index += len(chunk)
+                chunk = []
+        if chunk:
+            yield start_index, chunk
+    finally:
+        cap.release()
+
+
+def iter_video_frames(
+    video_path: str | Path,
+    max_frames: int | None = None,
+) -> Iterator[np.ndarray]:
+    """Yield BGR frames one at a time without loading the full video into memory."""
+    cap = open_video(str(video_path))
+    try:
+        count = 0
+        while max_frames is None or count < max_frames:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            yield frame
+            count += 1
+    finally:
+        cap.release()
 
 
 def load_first_frame(video_path: str | Path) -> np.ndarray:
@@ -65,7 +148,7 @@ def load_first_frame(video_path: str | Path) -> np.ndarray:
     """
     cap = open_video(str(video_path))
     try:
-        frames, _ = get_frames(cap, max_frames=1)
+        frames = get_frames(cap, max_frames=1)
     finally:
         cap.release()
     if not frames:
@@ -104,7 +187,7 @@ def save_video(
     # Write each frame to the video file
     for frame in frames:
         out.write(cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR) if frame.ndim == 2 else frame)
-    print(f"Video saved successfully at: {output_path}")
+    logger.info("Video saved successfully at: %s", output_path)
 
     # Release the VideoWriter object to finalize the video file
     out.release()

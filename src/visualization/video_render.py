@@ -1,11 +1,19 @@
+import itertools
+import os
+from collections.abc import Iterable
+
 import cv2
 
 from src.types.geometry import FrameTriangulatedPoints, TriangulationOutput
-from src.types.tracking import TrackingOutput
-from src.types.detection import DetectionOutput
-from src.utils.video_io import save_video
+from src.types.tracking import FrameTrackedDetections, TrackingOutput
+from src.types.detection import DetectionOutput, FrameDetections
+from src.utils.logging import get_logger
+from src.utils.video_io import iter_video_frames, save_video
 from src.visualization.drawing import draw_detections, draw_tracked_detections, overlay_inset
 from src.visualization.minimap import _MARGIN, draw_dot, make_base_canvas
+
+
+logger = get_logger(__name__)
 
 
 _INFO_COLOR = (200, 200, 200)
@@ -32,6 +40,38 @@ def produce_detection_output_video(
         for frame, frame_detections in zip(frames, detection_output.frames)
     ]
     save_video(annotated, output_path, int(out_fps))
+
+
+def stream_tracking_output_video(
+    annotated_frames: Iterable[cv2.Mat],
+    output_path: str,
+    fps: float,
+) -> None:
+    """Write `annotated_frames` to `output_path` one frame at a time.
+
+    Mirrors `save_video` but consumes an iterable, so callers can render
+    frames as they are produced (e.g. while streaming chunks from disk) and
+    never hold the full annotated video in memory.
+    """
+    iterator = iter(annotated_frames)
+    try:
+        first = next(iterator)
+    except StopIteration:
+        raise ValueError("stream_tracking_output_video received no frames.")
+
+    height, width = first.shape[:2]
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    writer = cv2.VideoWriter(output_path, fourcc, int(fps), (width, height), True)
+    if not writer.isOpened():
+        raise RuntimeError(f"Could not open VideoWriter for: {output_path}")
+    try:
+        writer.write(cv2.cvtColor(first, cv2.COLOR_GRAY2BGR) if first.ndim == 2 else first)
+        for frame in iterator:
+            writer.write(cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR) if frame.ndim == 2 else frame)
+    finally:
+        writer.release()
+    logger.info("Video saved successfully at: %s", output_path)
 
 
 def produce_tracking_output_video(
@@ -107,46 +147,61 @@ def produce_minimap_video(
 
 
 def produce_radar_overlay_video(
-    frames: list[cv2.Mat],
+    video_path: str,
     triangulation_output: TriangulationOutput,
     output_path: str,
     fps: float | None = None,
     alpha: float = 0.7,
     scale: float = 0.30,
+    max_frames: int | None = None,
 ) -> None:
     """Render a FIFA-style video with a top-down minimap radar overlay at the bottom.
 
-    Each frame receives a per-frame triangulated minimap composited centered along
-    the bottom edge. No bounding boxes are drawn on the video frames.
+    Streams source frames one at a time so the full video is never held in RAM.
 
     Parameters:
-        - frames: original BGR frames indexed 0..N-1
+        - video_path: path to the source camera video
         - triangulation_output: 3D points keyed by frame_index
         - output_path: destination MP4 path
         - fps: frame rate; falls back to triangulation_output.fps if None
         - alpha: minimap opacity (0=invisible, 1=opaque). Default 0.7.
         - scale: minimap width as a fraction of source video width. Default 0.30.
+        - max_frames: stop after this many frames; None processes the full video.
     """
     out_fps = fps if fps is not None else triangulation_output.fps
 
     base = make_base_canvas(margin=0)
     mh, mw = base.shape[:2]
-
-    video_h, video_w = frames[0].shape[:2]
-    target_w = int(video_w * scale)
-    target_h = int(mh * target_w / mw)
-
     tri_by_index = {f.frame_index: f for f in triangulation_output.frames}
 
-    annotated_frames: list[cv2.Mat] = []
-    for i, frame in enumerate(frames):
-        annotated = frame.copy()
-        triangulated = tri_by_index.get(i)
-        minimap = _render_minimap_frame(base, triangulated, margin=0)
-        minimap_resized = cv2.resize(minimap, (target_w, target_h), interpolation=cv2.INTER_AREA)
-        x0 = (video_w - target_w) // 2
-        y0 = video_h - target_h - 10
-        overlay_inset(annotated, minimap_resized, x0, y0, alpha)
-        annotated_frames.append(annotated)
+    frame_iter = iter_video_frames(video_path, max_frames=max_frames)
+    try:
+        first = next(frame_iter)
+    except StopIteration:
+        raise ValueError(f"No frames found in {video_path}")
 
-    save_video(annotated_frames, output_path, int(out_fps))
+    video_h, video_w = first.shape[:2]
+    target_w = int(video_w * scale)
+    target_h = int(mh * target_w / mw)
+    x0 = (video_w - target_w) // 2
+    y0 = video_h - target_h - 10
+
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    writer = cv2.VideoWriter(output_path, fourcc, int(out_fps), (video_w, video_h), True)
+    if not writer.isOpened():
+        raise RuntimeError(f"Could not open VideoWriter for: {output_path}")
+
+    def _annotate(i: int, frame: cv2.Mat) -> cv2.Mat:
+        annotated = frame.copy()
+        minimap = _render_minimap_frame(base, tri_by_index.get(i), margin=0)
+        minimap_resized = cv2.resize(minimap, (target_w, target_h), interpolation=cv2.INTER_AREA)
+        overlay_inset(annotated, minimap_resized, x0, y0, alpha)
+        return annotated
+
+    try:
+        for i, frame in enumerate(itertools.chain([first], frame_iter)):
+            writer.write(_annotate(i, frame))
+    finally:
+        writer.release()
+    logger.info("Video saved successfully at: %s", output_path)

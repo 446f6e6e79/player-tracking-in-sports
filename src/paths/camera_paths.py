@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -9,6 +10,28 @@ from src.paths.defaults import (
 )
 
 DEFAULT_ANNOTATIONS_VERSION = "tracking_01"
+
+# Camera ids in this project follow the strict pattern `cam_<int>` (e.g. `cam_2`,
+# `cam_13`). Validate at the boundary so downstream code can assume the format.
+_CAMERA_ID_RE = re.compile(r"^cam_(\d+)$")
+
+
+def parse_camera_id(camera_id: str) -> int:
+    """Return the numeric component of a camera id like 'cam_13' → 13.
+
+    Raises ValueError if `camera_id` does not match the expected `cam_<int>` form.
+    """
+    match = _CAMERA_ID_RE.match(camera_id)
+    if match is None:
+        raise ValueError(
+            f"Invalid camera id {camera_id!r}; expected pattern 'cam_<int>' (e.g. 'cam_13')."
+        )
+    return int(match.group(1))
+
+
+def video_filename_for_camera(camera_id: str) -> str:
+    """Filename convention for the source video of a camera (`out{N}.mp4`)."""
+    return f"out{parse_camera_id(camera_id)}.mp4"
 
 
 @dataclass(frozen=True)
@@ -31,11 +54,10 @@ class CameraPaths:
         vid_root = Path(videos_input_dir) if videos_input_dir is not None else DEFAULT_VIDEOS_INPUT_DIR
         cam_root = Path(camera_data_dir) if camera_data_dir is not None else DEFAULT_CAMERA_DATA_DIR
         res_root = Path(results_dir) if results_dir is not None else DEFAULT_RESULTS_DIR
-        num = camera_id.split("_", 1)[1]
         cam_dir = res_root / camera_id
         return cls(
             camera_id=camera_id,
-            video=vid_root / f"out{num}.mp4",
+            video=vid_root / video_filename_for_camera(camera_id),
             camera_data=cam_root / f"{camera_id}.json",
             videos_dir=cam_dir / "videos",
             serialized_dir=cam_dir / "serialized",

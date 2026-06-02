@@ -1,9 +1,12 @@
 from collections import defaultdict
 from dataclasses import replace
 
+from src.config import get_config
 from src.types.tracking import FrameTrackedDetections, TrackedDetection, TrackingOutput
+from src.utils.logging import get_logger
 
-BALL_CLASS = "Ball"
+
+logger = get_logger(__name__)
 
 
 def _rank_labels_per_track(
@@ -45,6 +48,7 @@ def _rank_labels_per_track(
 def _assign_stable_labels(
     ranked: dict[int, list[tuple[str, float]]],
     length_by_track: dict[int, int],
+    ball_class: str,
 ) -> dict[int, str]:
     """
     Assign a single stable label to each track. 
@@ -70,25 +74,28 @@ def _assign_stable_labels(
     for track_id in priority:
         for class_name, _conf in ranked[track_id]:
             # If the class is the ball, or if it hasn't been claimed by a higher-priority track, claim it for this track.
-            if class_name == BALL_CLASS or class_name not in claimed:
+            if class_name == ball_class or class_name not in claimed:
                 resolved[track_id] = class_name
                 # If we claimed a non-ball class, mark it as claimed so lower-priority tracks can't use it.
-                if class_name != BALL_CLASS:
+                if class_name != ball_class:
                     claimed.add(class_name)
                 break
         # If we went through all the labels and couldn't claim any (e.g. all were taken by higher-priority tracks)
         # Assign the top label anyway, even though it's a conflict
         else:
             resolved[track_id] = ranked[track_id][0][0]
-            print(
-                f"[label_resolution] track {track_id} had no free label; "
-                f"keeping conflicting top choice {resolved[track_id]!r}"
+            logger.warning(
+                "track %s had no free label; keeping conflicting top choice %r",
+                track_id, resolved[track_id],
             )
 
     return resolved
 
 
-def _dedupe_within_frame(detections: list[TrackedDetection]) -> list[TrackedDetection]:
+def _dedupe_within_frame(
+    detections: list[TrackedDetection],
+    ball_class: str,
+) -> list[TrackedDetection]:
     """Remove duplicate detections of the same class within a single frame, keeping only the one with the highest confidence."""
     # Map from class_name to the best detection of that class in this frame
     best_by_label: dict[str, TrackedDetection] = {}
@@ -97,7 +104,7 @@ def _dedupe_within_frame(detections: list[TrackedDetection]) -> list[TrackedDete
 
     for detection in detections:
         # Keep all ball detections
-        if detection.class_name == BALL_CLASS:
+        if detection.class_name == ball_class:
             survivors.append(detection)
             continue
         
@@ -126,8 +133,9 @@ def resolve_track_labels(tracking_output: TrackingOutput) -> TrackingOutput:
         3. Rewriting the tracking output with the resolved stable labels, and deduplicating any conflicting detections within each frame.
            (this way we ensure that each label appears at most once per frame)
     """
+    ball_class = get_config().classes.ball_class_name
     ranked, length_by_track = _rank_labels_per_track(tracking_output)
-    resolved = _assign_stable_labels(ranked, length_by_track)
+    resolved = _assign_stable_labels(ranked, length_by_track, ball_class)
 
     new_frames: list[FrameTrackedDetections] = []
     for fd in tracking_output.frames:
@@ -142,7 +150,7 @@ def resolve_track_labels(tracking_output: TrackingOutput) -> TrackingOutput:
             else:
                 rewritten.append(replace(detection, class_name=stable))
 
-        rewritten = _dedupe_within_frame(rewritten)
+        rewritten = _dedupe_within_frame(rewritten, ball_class)
         new_frames.append(FrameTrackedDetections(frame_index=fd.frame_index, detections=rewritten))
 
     return TrackingOutput(

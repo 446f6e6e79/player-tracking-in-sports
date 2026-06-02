@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 
 from src.utils.iou import iou
@@ -7,7 +9,7 @@ from src.types.detection import DetectionOutput
 
 def class_independent_nms(
     detection_output: DetectionOutput,
-    iou_threshold: float = 0.5,
+    iou_threshold: float,
 ) -> DetectionOutput:
     """
     Greedy class-independent NMS, frame by frame.
@@ -22,6 +24,14 @@ def class_independent_nms(
     Returns:
         - A new DetectionOutput with the same structure but with detections filtered by NMS.
     """
+    if not detection_output.frames:
+        warnings.warn(
+            "class_independent_nms received a DetectionOutput with no frames; "
+            "returning it unchanged.",
+            stacklevel=2,
+        )
+        return detection_output
+
     new_frames: list[FrameDetections] = []
 
     for frame_detections in detection_output.frames:
@@ -44,9 +54,4 @@ def class_independent_nms(
 
         new_frames.append(FrameDetections(frame_index=frame_detections.frame_index, detections=kept))
 
-    return DetectionOutput(
-        source=detection_output.source,
-        camera_id=detection_output.camera_id,
-        fps=detection_output.fps,
-        frames=new_frames,
-    )
+    return detection_output.with_frames(new_frames)
