@@ -1,0 +1,33 @@
+\section{Evaluation}\label{sec:evaluation}
+
+\subsection{Detection Metrics}
+% Precision, Recall, F1, Mean IoU @ IoU=0.5
+% Evaluated on annotated frames (every 5 frames)
+% Compared: MOG2 vs YOLO pretrained vs YOLO fine-tuned
+
+\subsection{Tracking Metrics}
+
+\subsubsection{IDF1-Based Identity Metrics}
+% IDTP, IDFP, IDFN -> IDP, IDR, IDF1
+% Measures ability to maintain consistent identities over time
+
+\subsubsection{HOTA}
+% DetA: TP / (TP + FP + FN) at multiple IoU thresholds
+% AssA: per-pair association consistency across frames
+% HOTA: geometric mean of DetA x AssA (balanced, neither dominates)
+% LocA: mean IoU of matched pairs
+% Evaluated at 10 IoU thresholds (0.05 to 0.95), score averaged uniformly
+% Compared: SORT vs DeepSORT
+
+\subsection{3D Geometry Metrics}
+
+\subsubsection{Reprojection Error}
+% Project triangulated 3D points back to image plane
+% Metrics: mean, median, std, RMSE; accuracy @ 5/10/20 px
+
+\subsubsection{Trajectory Error}
+% Compare projected 3D trajectories vs GT 2D annotated trajectories
+% ADE: average displacement error over all frames
+% FDE: final displacement error (captures drift)
+% MTE: median trajectory error (robust to outliers)
+% Fragments: coverage gaps in predicted vs GT trajectory

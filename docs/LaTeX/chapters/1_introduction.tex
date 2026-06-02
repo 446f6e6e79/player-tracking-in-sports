@@ -1,0 +1,15 @@
+\section{Introduction}
+
+Vision-based player tracking offers a scalable alternative to the expensive dedicated hardware traditionally used in sports analytics. 
+However, basketball poses severe challenges for these systems \cite{survey}: rapid movements cause frequent mutual occlusions, 
+the fast-moving ball suffers from severe motion blur, and indoor environments introduce specular floor reflections. 
+Multi-camera setups alleviate occlusions by providing complementary viewpoints, but they require robust cross-view association, 
+which in turn depends on consistent player tracking within each individual camera.
+
+In this work, we present an end-to-end pipeline for multi-view player tracking and 3D reconstruction, 
+applied to basketball footage from the Sanbapolis facility in Trento, Italy. 
+We systematically compare detection strategies: from classical background subtraction (MOG2), to a domain-adapted YOLOv26 
+with multi-pass inference—showing that domain adaptation combined with class-agnostic NMS \cite{nms} is essential for reliable detection. 
+For tracking, evaluating SORT \cite{sort} against DeepSORT \cite{deepsort} demonstrates that appearance-based re-identification significantly 
+reduces identity switches during player crossings. 
+Finally, we reconstruct 3D trajectories via SVD-based triangulation across three calibrated cameras, utilizing Kalman smoothing to suppress noise.

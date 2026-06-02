@@ -1,0 +1,18 @@
+\section{Tracking}\label{sec:tracking}
+
+\subsection{SORT}
+% Kalman filter state: position, velocity, scale, aspect ratio
+% Hungarian matching on IoU; max IoU dist=0.8, max age=60 frames, n_init=2
+% Limitation: identity switches during player crossings/occlusions
+
+\subsection{DeepSORT}
+% Enhancement: OSNet Re-ID embeddings (cosine distance)
+% Matching cascade: recency -> appearance gate -> IoU fallback
+% Gallery: up to 100 embeddings per track
+% Parameters: max appearance dist=0.2, max age=30 frames, n_init=2
+% Key advantage: fewer identity switches via appearance-based reassociation
+
+\subsection{Label Resolution}
+% Voting mechanism: assign stable class label per track ID across frames
+% Collision resolution when multiple tracks claim same identity
+% Ball is exempt (categorical object, not a unique player identity)

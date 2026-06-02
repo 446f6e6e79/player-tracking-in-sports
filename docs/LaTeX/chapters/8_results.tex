@@ -1,0 +1,21 @@
+\section{Results and Discussion}\label{sec:results}
+
+\subsection{Detection}
+% Fine-tuned YOLO + class-agnostic NMS wins; explain why each baseline falls short
+% MOG2: low precision/recall from domain violations
+% Pretrained YOLO: good generalization but misses ball and player identity
+% Fine-tuned YOLO: best across all metrics; NMS essential to remove duplicates
+
+\subsection{Tracking}
+% DeepSORT wins on IDF1 and HOTA; quantify reduction in identity switches
+% Discuss sensitivity of max_age parameter for basketball crossings
+
+\subsection{3D Reconstruction}
+% Reprojection error results and what drives residual error
+% Impact of Kalman smoothing on trajectory metrics (ADE, FDE, MTE)
+% Remaining error sources: calibration noise, occlusion-driven gaps
+
+\subsection{Limitations and Failure Cases}
+% Cases where identities still switch (prolonged occlusion, cluster crossings)
+% Ball detection failures (motion blur, occlusion under players)
+% Cameras with partial court coverage

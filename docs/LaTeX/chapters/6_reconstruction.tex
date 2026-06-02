@@ -1,0 +1,20 @@
+\section{3D Reconstruction}\label{sec:reconstruction}
+
+\subsection{Camera Calibration}
+% Intrinsics: provided directly
+% Extrinsics: computed from user-clicked court landmarks paired with known 3D court coords
+% Distortion modeled directly (no pre-undistortion step)
+
+\subsection{Rectification}
+% Removes lens distortion from 2D detections
+% Maps bounding box centers to a common undistorted coordinate system
+
+\subsection{Triangulation}
+% Groups 2D detections by track ID and frame index across all cameras
+% Builds per-camera projection matrices P = K[R|t]
+% SVD-based homogeneous solution, normalized to Euclidean coordinates
+% Output: 3D trajectories for each player and the ball
+
+\subsection{Trajectory Smoothing}
+% Per-player Kalman filter on 3D coordinates
+% State: position + velocity; mitigates triangulation noise and detection jitter

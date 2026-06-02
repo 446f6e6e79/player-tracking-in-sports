@@ -1,0 +1,20 @@
+\section{Detection}\label{sec:detection}
+
+\subsection{Background Subtraction (MOG2 + CLAHE)}
+% Method: MOG2 with CLAHE illumination normalization
+% Post-processing: morphological ops + contour detection
+% Limitations: reflections, static players, dynamic background (spectators)
+
+\subsection{Pre-Trained YOLOv11}
+% Architecture: CNN backbone + detection head, COCO pre-training
+% Parameters: conf=0.4, IoU NMS=0.45, input 640px
+% Limitations: no ball class, no player identity distinction
+
+\subsection{Fine-Tuned YOLOv11 with Multi-Pass Inference}
+% Domain adaptation on Sanbapolis dataset
+% Player pass (1280px, conf=0.3) + ball pass (1600px, conf=0.2)
+% Rationale for higher resolution on ball (small object, <2 grid cells at 640px)
+
+\subsubsection{Class-Agnostic NMS}
+% Problem: class-based NMS keeps duplicate boxes for same player
+% Solution: greedy suppression across all classes, IoU threshold=0.75
