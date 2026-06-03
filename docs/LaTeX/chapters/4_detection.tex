@@ -1,20 +1,74 @@
 \section{Detection}\label{sec:detection}
 
 \subsection{Background Subtraction (MOG2 + CLAHE)}
-% Method: MOG2 with CLAHE illumination normalization
-% Post-processing: morphological ops + contour detection
-% Limitations: reflections, static players, dynamic background (spectators)
+As a baseline, we adopt MOG2 background subtraction \cite{survey}, in which each
+pixel's intensity distribution is modelled as a mixture of $K$ Gaussians:
+\begin{equation}
+  P(x_t) = \sum_{k=1}^{K} w_{k,t}\,\mathcal{N}(x_t \mid \mu_{k,t},\,\sigma_{k,t}^2).
+\end{equation}
+A pixel is classified as foreground if its Mahalanobis distance to the
+best-matching background component exceeds a fixed threshold.
+Prior to background modelling, illumination is normalised with Contrast Limited
+Adaptive Histogram Equalization (CLAHE) \cite{clahe}, and the resulting foreground
+mask is cleaned with morphological opening and closing; connected components smaller
+than a minimum area threshold are discarded.
+Alternative background subtractors (KNN, LSBP, GSOC) were evaluated but offered no
+improvement over MOG2 while incurring higher computational cost.
+
+Despite these refinements, the method exhibits three recurring failure modes: floor
+specularities produce shadows whose hue values fall outside the range that MOG2's
+built-in shadow detector handles; players who are briefly stationary are
+indistinguishable from background; and moving spectators generate persistent false
+positives.
+Because the optimal morphological kernel sizes and detection thresholds differ
+across cameras, the method also lacks cross-camera generalization.
 
 \subsection{Pre-Trained YOLOv11}
-% Architecture: CNN backbone + detection head, COCO pre-training
-% Parameters: conf=0.4, IoU NMS=0.45, input 640px
-% Limitations: no ball class, no player identity distinction
+To overcome these limitations, we apply a YOLOv11 model \cite{yolo_paper,yolo_github}
+pre-trained on COCO, using a confidence threshold of 0.4, an NMS IoU threshold of
+0.45, and an inference resolution of 640\,px.
+Detection quality improves substantially, with fewer false positives and better
+spatial localisation.
+However, the pre-trained model has two domain gaps: the ball is absent from COCO's
+person-centric classes, and players and referees are both labelled ``person'',
+making identity distinction impossible.
 
-\subsection{Fine-Tuned YOLOv11 with Multi-Pass Inference}
-% Domain adaptation on Sanbapolis dataset
-% Player pass (1280px, conf=0.3) + ball pass (1600px, conf=0.2)
-% Rationale for higher resolution on ball (small object, <2 grid cells at 640px)
+\subsection{Fine-Tuned YOLOv26 with Multi-Pass Inference}
+To close both gaps, we fine-tune the YOLOv26 backbone on a Sanbapolis-specific
+annotated set.
+The fine-tuned model uses identity-encoding class labels (one class per player
+identity, e.g.\ \textit{Red\_11}) and a dedicated \textit{Ball} class.
+
+Because at 640\,px the convolutional backbone downsamples a 1080p frame by
+approximately $1.7\times$, a 15\,px basketball occupies fewer than two feature-map
+grid cells, which is insufficient for reliable localisation.
+We therefore run two separate inference passes per frame:
+\begin{itemize}
+  \item \textbf{Player pass}: 1280\,px resolution, confidence threshold 0.3.
+    A second run at a lower threshold (0.15) retains a low-confidence band that is
+    reserved for the tracker's secondary association pass.
+  \item \textbf{Ball pass}: 1600\,px resolution, confidence threshold 0.2.
+    The higher resolution increases the spatial footprint of the ball, while the
+    lower threshold favours recall for this motion-blurred, occasionally occluded object.
+\end{itemize}
+The two sets of detections are merged frame by frame into a single output.
 
 \subsubsection{Class-Agnostic NMS}
-% Problem: class-based NMS keeps duplicate boxes for same player
-% Solution: greedy suppression across all classes, IoU threshold=0.75
+Because player identity is encoded directly in the class label, the standard
+per-class NMS may retain two overlapping boxes that predict different identities for
+the same physical player.
+We therefore replace it with a class-agnostic variant \cite{nms}: all detections are
+pooled regardless of class, sorted by confidence, and greedily suppressed so that
+any box whose Intersection over Union with a higher-scoring box exceeds 0.75 is
+discarded.
+This collapses duplicate boxes for the same player without affecting the ball.
+The result of this step is the final detection output fed to the tracker.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\linewidth]{../media/fig_detection.png}
+  \caption{Sample detection output from fine-tuned YOLOv26 with class-agnostic NMS
+           on cam\_13 (three selected frames). Colour-coded bounding boxes indicate
+           player identities; the ball is shown separately.}
+  \label{fig:detection}
+\end{figure}

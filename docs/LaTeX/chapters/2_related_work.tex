@@ -1,13 +1,45 @@
 \section{Related Work}\label{sec:related}
 
 \subsection{Background Subtraction}
-% MOG2 family methods
+Background subtraction is one of the earliest and most widely-used approaches for
+moving-player detection in sports footage.
+Manafifard et al.\ \cite{survey} survey the landscape of soccer player tracking,
+noting that Mixture-of-Gaussians (MOG) models provide an effective and
+computationally cheap baseline: each pixel's intensity distribution is modelled as a
+weighted mixture of Gaussians that adapt over time, and pixels deviating
+significantly from their background model are labelled foreground.
+Subsequent variants improve robustness through shadow detection and adaptive
+learning rates, but the fundamental assumption of a mostly static background
+remains a limiting factor for indoor sports arenas with dynamic spectator regions.
 
 \subsection{Object Detection with Deep Learning}
-% YOLO lineage
+Redmon et al.\ \cite{yolo_paper} introduced YOLO, a single-stage detector that
+reformulates object detection as a direct regression from image pixels to bounding
+boxes and class probabilities via a convolutional backbone and a detection head.
+The YOLO family \cite{yolo_github} has since been refined through numerous
+iterations, improving detection speed and accuracy while maintaining real-time
+performance.
+Pre-training on large-scale datasets such as COCO endows these models with general
+semantic representations that transfer well across domains, making fine-tuning on
+small application-specific datasets a practical strategy.
 
 \subsection{Multi-Object Tracking}
-% SORT, DeepSORT, Re-ID models
+Bewley et al.\ \cite{sort} proposed SORT, combining a Kalman filter for motion
+prediction with the Hungarian algorithm for detection-to-track assignment.
+Despite its simplicity, SORT achieves competitive performance but suffers from
+frequent identity switches when objects cross or become occluded.
+Wojke et al.\ \cite{deepsort} extended SORT with a deep appearance metric based on
+a lightweight re-identification network (OSNet \cite{reid}) that extracts compact
+appearance embeddings; a matching cascade prioritising tracks by recency and
+appearance similarity substantially reduces identity switches.
+Zhang et al.\ \cite{bytetrack} introduced ByteTrack, which performs a second
+association pass on low-confidence detections after the primary high-confidence
+pass, further improving track continuity under partial occlusion.
 
 \subsection{Multi-View 3D Reconstruction in Sports}
-% Prior work on camera-based sports analytics
+Multi-camera setups are standard in sports analytics to resolve occlusions and
+recover three-dimensional player positions \cite{survey}.
+Classical approaches pair known camera calibration parameters with epipolar
+geometry or direct linear triangulation (DLT) to lift matched 2D detections into
+3D, often followed by temporal smoothing to suppress noise introduced by detection
+errors and imperfect calibration.

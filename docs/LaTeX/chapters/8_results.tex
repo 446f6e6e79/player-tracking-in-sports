@@ -1,21 +1,168 @@
 \section{Results and Discussion}\label{sec:results}
 
 \subsection{Detection}
-% Fine-tuned YOLO + class-agnostic NMS wins; explain why each baseline falls short
-% MOG2: low precision/recall from domain violations
-% Pretrained YOLO: good generalization but misses ball and player identity
-% Fine-tuned YOLO: best across all metrics; NMS essential to remove duplicates
+
+Table~\ref{tab:detection} reports detection performance on the annotated frames.
+
+\begin{table}[t]
+\centering
+\caption{Detection results across cameras (IoU threshold = 0.5).}
+\label{tab:detection}
+\small
+\begin{tabular}{llrrrrr}
+\toprule
+Method & Camera & Precision & Recall & $F_1$ & Mean IoU \\
+\midrule
+\multirow{3}{*}{MOG2}
+  & cam\_13 & 0.471 & 0.262 & 0.337 & 0.651 \\
+  & cam\_2  & 0.345 & 0.408 & 0.374 & 0.663 \\
+  & cam\_4  & 0.328 & 0.293 & 0.309 & 0.700 \\
+\midrule
+\multirow{3}{*}{YOLO pre-trained}
+  & cam\_13 & 0.834 & 0.602 & 0.699 & 0.748 \\
+  & cam\_2  & 0.819 & 0.781 & 0.800 & 0.785 \\
+  & cam\_4  & 0.927 & 0.807 & 0.862 & 0.808 \\
+\midrule
+\multirow{3}{*}{YOLO fine-tuned}
+  & cam\_13 & 0.872 & 0.732 & 0.796 & 0.758 \\
+  & cam\_2  & 0.835 & 0.761 & 0.796 & 0.757 \\
+  & cam\_4  & 0.923 & 0.822 & 0.870 & 0.796 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+MOG2 achieves the lowest $F_1$ on all cameras, confirming that the assumption of a
+static background is violated by moving spectators and specular reflections.
+The pre-trained YOLOv11 baseline generalises far better, but recall remains
+limited because the ball is absent from its label set and some player detections are
+missed in crowded regions.
+The fine-tuned model with class-agnostic NMS achieves the best $F_1$ on cam\_4
+(0.870) and competitive scores on the other views, with a notably higher precision
+than the pre-trained model on cam\_4 (0.923 vs.\ 0.927) and substantially better
+recall on cam\_13 (0.732 vs.\ 0.602), demonstrating the value of domain adaptation.
 
 \subsection{Tracking}
-% DeepSORT wins on IDF1 and HOTA; quantify reduction in identity switches
-% Discuss sensitivity of max_age parameter for basketball crossings
+
+Tables~\ref{tab:identity} and~\ref{tab:hota} report identity and HOTA scores.
+
+\begin{table}[t]
+\centering
+\caption{Identity tracking metrics (IoU threshold = 0.5).}
+\label{tab:identity}
+\small
+\begin{tabular}{llrrrrrr}
+\toprule
+Tracker & Camera & IDP & IDR & IDF1 \\
+\midrule
+\multirow{3}{*}{SORT}
+  & cam\_13 & 0.660 & 0.514 & 0.590 \\
+  & cam\_2  & 0.743 & 0.607 & 0.668 \\
+  & cam\_4  & 0.768 & 0.605 & 0.679 \\
+\midrule
+\multirow{3}{*}{DeepSORT}
+  & cam\_13 & 0.588 & 0.533 & 0.569 \\
+  & cam\_2  & 0.617 & 0.603 & 0.610 \\
+  & cam\_4  & 0.670 & 0.605 & 0.638 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{HOTA tracking metrics.}
+\label{tab:hota}
+\small
+\begin{tabular}{llrrrr}
+\toprule
+Tracker & Camera & HOTA & DetA & AssA & LocA \\
+\midrule
+\multirow{3}{*}{SORT}
+  & cam\_13 & 0.438 & 0.484 & 0.398 & 0.797 \\
+  & cam\_2  & 0.517 & 0.515 & 0.522 & 0.794 \\
+  & cam\_4  & 0.542 & 0.575 & 0.514 & 0.829 \\
+\midrule
+\multirow{3}{*}{DeepSORT}
+  & cam\_13 & 0.434 & 0.469 & 0.405 & 0.769 \\
+  & cam\_2  & 0.480 & 0.453 & 0.511 & 0.761 \\
+  & cam\_4  & 0.521 & 0.553 & 0.495 & 0.798 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+On IDF1, SORT outperforms DeepSORT on this short clip, while HOTA scores are close
+between the two across all cameras.
+The identity-in-class labels from the fine-tuned detector already encode player
+identity at detection time, which benefits SORT's simple IoU matching.
+DeepSORT's advantage lies in its greater resilience to prolonged occlusions through
+appearance-based re-identification; however, over only 525 frames, such events are
+relatively infrequent, and the increased track count from coasting and resurrection
+slightly raises IDFP.
+The association component (AssA) is broadly similar for both trackers, confirming
+that the main tracking challenge on this clip is detection recall rather than
+association quality.
 
 \subsection{3D Reconstruction}
-% Reprojection error results and what drives residual error
-% Impact of Kalman smoothing on trajectory metrics (ADE, FDE, MTE)
-% Remaining error sources: calibration noise, occlusion-driven gaps
+
+Tables~\ref{tab:reprojection} and~\ref{tab:trajectory} report geometry quality.
+
+\begin{table}[t]
+\centering
+\caption{Reprojection error of triangulated 3D points.}
+\label{tab:reprojection}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Camera & Mean (px) & Median (px) & RMSE (px) & Acc@5px & Acc@10px & Acc@20px \\
+\midrule
+cam\_13 &  51.3 & 28.9 &  87.7 & 0.135 & 0.221 & 0.349 \\
+cam\_2  & 140.0 & 94.5 & 278.7 & 0.028 & 0.047 & 0.094 \\
+cam\_4  & 135.0 & 50.0 & 296.2 & 0.168 & 0.214 & 0.295 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Trajectory error of projected 3D tracks vs.\ ground-truth 2D annotations.}
+\label{tab:trajectory}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Camera & ADE (px) & FDE (px) & MTE (px) & Fragments \\
+\midrule
+cam\_13 &  976.8 &  849.8 & 1047.5 & 2 \\
+cam\_2  & 1066.0 & 1279.1 & 1181.4 & 5 \\
+cam\_4  & 1838.2 & 1689.1 & 1899.9 & 5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Reprojection error is substantially lower for cam\_13 (median 28.9\,px) than for
+the other two views (median 94.5 and 50.0\,px), reflecting the relative quality of
+the manually selected calibration correspondences.
+The large RMSE values for cam\_2 and cam\_4 indicate the presence of outlier frames
+where the triangulated point reprojects far from the observed detection, likely due
+to a poor extrinsic estimate or a detection on a mismatched identity.
+
+The trajectory errors (ADE/FDE/MTE in the hundreds of pixels) are large across all
+views, revealing that the primary bottleneck is not the tracking or triangulation
+algorithms but calibration accuracy: a systematic offset in the estimated camera
+pose propagates directly into a constant positional bias in the reconstructed
+trajectories.
+The fragment count is low (2--5 per camera), indicating that the reconstructed
+tracks cover the annotated span with few coverage gaps.
 
 \subsection{Limitations and Failure Cases}
-% Cases where identities still switch (prolonged occlusion, cluster crossings)
-% Ball detection failures (motion blur, occlusion under players)
-% Cameras with partial court coverage
+
+Several systematic failure modes remain.
+Prolonged occlusions (more than $\sim$2.4\,s at 25\,fps) exhaust the tracker's
+maximum age, causing track deletions and subsequent identity re-assignment even with
+appearance-based resurrection.
+Ball detection is unreliable under severe motion blur or when the ball passes
+directly under a player, reducing its visible area below the confidence threshold.
+Partial court coverage by cam\_2 and cam\_4 means that a player near the court
+boundary may be visible in only one or two views, reducing the robustness of
+triangulation.
+Finally, the manually determined extrinsic calibration introduces biases that
+directly inflate the reprojection and trajectory errors reported above; an automatic
+or online calibration procedure would be necessary for deployment.
