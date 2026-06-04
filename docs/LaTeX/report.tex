@@ -11,32 +11,7 @@
 \institute{University of Trento, Master's Degree in Computer Science, Italy\\}
 \maketitle
 
-\begin{abstract}
-Reliable player and ball tracking in multi-camera sports footage is a prerequisite
-for automated game analysis, yet it remains challenging due to rapid motion,
-frequent mutual occlusions, and domain-specific visual characteristics such as
-specular floor reflections.
-We present an end-to-end pipeline applied to synchronized three-camera basketball
-recordings from the Sanbapolis facility in Trento, Italy, covering detection,
-multi-object tracking, and 3D reconstruction.
-For detection, we systematically progress from classical background subtraction
-(MOG2) through a pre-trained YOLOv11 baseline to a domain-fine-tuned YOLOv26 with
-multi-pass inference and class-agnostic non-maximum suppression, achieving the best
-detection F1 across all views.
-For tracking, we compare SORT against an extended DeepSORT with OSNet re-identification,
-ByteTrack low-confidence recovery, and trajectory smoothing, demonstrating improved
-identity maintenance through player crossings.
-3D player and ball positions are reconstructed per frame via SVD-based triangulation
-across the three calibrated views and refined with an RTS-smoothed Kalman filter;
-residual error is dominated by calibration noise and occlusion-driven gaps rather
-than the triangulation method itself.
-\end{abstract}
-
-\keywords{multi-object tracking \and player tracking \and 3D reconstruction \and
-multi-view geometry \and person re-identification \and YOLO}
-
 \input{chapters/1_introduction.tex}
-\input{chapters/2_related_work.tex}
 \input{chapters/3_dataset.tex}
 \input{chapters/4_detection.tex}
 \input{chapters/5_tracking.tex}

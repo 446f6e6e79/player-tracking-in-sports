@@ -12,7 +12,7 @@ and the resulting predicted boxes are matched to incoming detections by the
 Hungarian algorithm on an IoU cost matrix.
 Pairs with IoU below a gating threshold are forbidden from matching (max IoU
 distance 0.8); tracks unmatched for more than 60 frames are deleted, and new
-detections require two consecutive matches before being confirmed ($n_\text{init}=2$).
+detections require two consecutive matches before being confirmed ($n_{\mathrm{init}}=2$).
 The main limitation of SORT is that it relies exclusively on spatial proximity for
 re-identification: when two players cross, their Kalman predictions may overlap, and
 the tracker frequently swaps their identities.

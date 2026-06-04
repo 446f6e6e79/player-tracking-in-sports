@@ -2,13 +2,13 @@
 
 \subsection{Detection Metrics}
 A predicted box is a True Positive (TP) when its Intersection over Union (IoU) with
-an unmatched ground-truth box satisfies $\text{IoU} \geq 0.5$; otherwise it is a
+an unmatched ground-truth box satisfies $\mathrm{IoU} \geq 0.5$; otherwise it is a
 False Positive (FP), and a ground-truth box with no matching prediction is a False
 Negative (FN).
 The standard metrics are:
 \begin{equation}
-  \text{Precision} = \frac{TP}{TP+FP}, \quad
-  \text{Recall} = \frac{TP}{TP+FN}, \quad
+  \mathrm{Precision} = \frac{TP}{TP+FP}, \quad
+  \mathrm{Recall} = \frac{TP}{TP+FN}, \quad
   F_1 = \frac{2\,TP}{2\,TP+FP+FN}.
 \end{equation}
 Mean IoU reports the average spatial overlap of matched TP pairs, independently of
@@ -32,12 +32,12 @@ association components evaluated at multiple IoU thresholds
 $\alpha \in \{0.05, 0.10, \ldots, 0.95\}$.
 Detection accuracy is:
 \begin{equation}
-  \text{DetA}(\alpha) = \frac{TP(\alpha)}{TP(\alpha)+FP(\alpha)+FN(\alpha)}.
+  \mathrm{DetA}(\alpha) = \frac{TP(\alpha)}{TP(\alpha)+FP(\alpha)+FN(\alpha)}.
 \end{equation}
 Association accuracy quantifies how consistently matched detection pairs are linked
 into the same track across frames:
 \begin{equation}
-  \text{AssA}(\alpha) = \frac{1}{|TP(\alpha)|}
+  \mathrm{AssA}(\alpha) = \frac{1}{|TP(\alpha)|}
   \sum_{(c,\hat{c})\,\in\,TP(\alpha)}
   \frac{|TPA(c,\hat{c})|}{|TPA(c,\hat{c})|+|FPA(c,\hat{c})|+|FNA(c,\hat{c})|},
 \end{equation}
@@ -45,7 +45,7 @@ where $TPA$, $FPA$, $FNA$ count per-pair association correct, wrong, and missed
 frames.
 HOTA at a single threshold is their geometric mean:
 \begin{equation}
-  \text{HOTA}(\alpha) = \sqrt{\text{DetA}(\alpha)\times\text{AssA}(\alpha)},
+  \mathrm{HOTA}(\alpha) = \sqrt{\mathrm{DetA}(\alpha)\times\mathrm{AssA}(\alpha)},
 \end{equation}
 and the final score is the uniform average over all thresholds.
 LocA reports the mean IoU of all matched pairs, summarising spatial localisation
@@ -57,7 +57,7 @@ independently of association.
 Each triangulated 3D point is projected back into the image plane of every camera
 via $\hat{\mathbf{p}} = K[R\mid t]\,\mathbf{P}$, and the Euclidean distance to the
 2D detection that served as the triangulation input is computed:
-$e = \|\hat{\mathbf{p}} - \mathbf{p}_\text{pred}\|_2$.
+$e = \|\hat{\mathbf{p}} - \mathbf{p}_\mathrm{pred}\|_2$.
 We report the mean, median, RMSE, and the fraction of matches below 5, 10, and
 20\,pixels.
 

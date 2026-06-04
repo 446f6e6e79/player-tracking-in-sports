@@ -1,15 +1,12 @@
-\section{Introduction}
+\section{Introduction}\label{sec:intro}
+Vision-based tracking provides a scalable alternative to expensive sports analytics hardware, but basketball's rapid movements, mutual occlusions, motion blur, and specular floor reflections pose severe challenges. 
+Multi-camera setups can alleviate these occlusions by providing complementary viewpoints, but they require highly robust 2D tracking within 
+each individual camera to ensure consistent cross-view association.
 
-Vision-based player tracking offers a scalable alternative to the expensive dedicated hardware traditionally used in sports analytics. 
-However, basketball poses severe challenges for these systems \cite{survey}: rapid movements cause frequent mutual occlusions, 
-the fast-moving ball suffers from severe motion blur, and indoor environments introduce specular floor reflections. 
-Multi-camera setups alleviate occlusions by providing complementary viewpoints, but they require robust cross-view association, 
-which in turn depends on consistent player tracking within each individual camera.
+To address these challenges, modern pipelines have largely abandoned classical background subtraction \cite{survey} in favor of tracking-by-detection paradigms. 
+Real-time localization is typically driven by single-stage detectors like the YOLO family \cite{yolo_paper, yolo_github}. 
+To link these spatial detections temporally, SORT \cite{sort} established a baseline using Kalman filtering, which was later improved to handle 
+severe occlusions using deep appearance embeddings (DeepSORT \cite{deepsort, reid}) and low-confidence secondary associations (ByteTrack \cite{bytetrack}). 
+Finally, multi-camera configurations \cite{survey} resolve remaining overlaps by applying epipolar geometry and triangulation to lift 2D sequences into 3D space.
 
-In this work, we present an end-to-end pipeline for multi-view player tracking and 3D reconstruction, 
-applied to basketball footage from the Sanbapolis facility in Trento, Italy. 
-We systematically compare detection strategies: from classical background subtraction (MOG2), to a domain-adapted YOLOv26
-with multi-pass inference—showing that domain adaptation combined with class-agnostic NMS \cite{nms} is essential for reliable detection. 
-For tracking, evaluating SORT \cite{sort} against DeepSORT \cite{deepsort} demonstrates that appearance-based re-identification significantly 
-reduces identity switches during player crossings. 
-Finally, we reconstruct 3D trajectories via SVD-based triangulation across three calibrated cameras, utilizing Kalman smoothing to suppress noise.
+Building on these foundations, we present an end-to-end pipeline for multi-view player tracking and 3D reconstruction, applied to basketball footage from the Sanbapolis facility in Trento, Italy. We systematically evaluate these strategies, demonstrating that a domain-adapted YOLO26 with class-agnostic NMS \cite{nms} combined with appearance-based DeepSORT heavily outperforms classical baselines (MOG2, SORT) in reducing identity switches. Finally, we reconstruct 3D trajectories across three calibrated cameras using SVD-based triangulation, utilizing Kalman smoothing to suppress detection noise.

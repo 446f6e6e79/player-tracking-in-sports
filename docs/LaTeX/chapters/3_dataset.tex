@@ -1,22 +1,5 @@
-\section{Dataset and Experimental Setup}\label{sec:dataset}
-
-Experiments are conducted on a basketball recording from the Sanbapolis sports
-facility in Trento, Italy.
-Three synchronized cameras (cam\_13, cam\_2, and cam\_4) capture a single game act,
-each producing 525 frames at 25\,fps (approximately 21 seconds).
-The cameras provide complementary viewpoints of the court, enabling multi-view
-triangulation.
-
-Ground-truth bounding-box annotations are available for every fifth frame (105
-annotated frames per camera), yielding 1408, 544, and 1143 annotated instances for
-cam\_13, cam\_2, and cam\_4 respectively.
-All detection and tracking metrics are computed exclusively on these annotated
-frames, so no predicted detections on unannotated frames are counted as false
-positives.
-
-Camera intrinsic parameters (focal length, principal point, and radial distortion
-coefficients) are provided directly.
-Extrinsic parameters are computed by clicking known court landmarks on the first
-frame and pairing the selected image coordinates with their fixed 3D positions in
-the court coordinate system; lens distortion is modelled within the pose solver
-without pre-undistorting the image.
+\subsection{Dataset and Setup}
+We evaluate our pipeline on a 21-second basketball sequence (525 frames, 25\,fps) captured by three synchronized cameras (cam\_13, cam\_2, cam\_4). 
+Camera intrinsics are provided, while extrinsics are estimated via 2D-3D point correspondences of known court landmarks on the first frame, 
+modeling lens distortion directly within the pose solver. 
+For evaluation, ground-truth bounding boxes are annotated every fifth frame.
