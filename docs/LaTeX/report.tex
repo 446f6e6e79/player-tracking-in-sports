@@ -1,26 +1,29 @@
 \documentclass{llncs}
 \usepackage{graphicx}
 \usepackage{booktabs}
+\usepackage{float}
 
 \begin{document}
 
 % Link to the documentation usage https://texdoc.org/serve/llncs/0
 
-\title{Player Tracking in Sports --- Multi-View Tracking and 3D Reconstruction}
+\title{Player Tracking in Sports: Multi-View Tracking and 3D Reconstruction}
 \author{Andrea Blushi\inst{1} (ID: 264468) \and Davide Don\`{a}\inst{1} (ID: 264467)}
 \institute{University of Trento, Master's Degree in Computer Science, Italy\\}
 \maketitle
 
-\input{chapters/1_introduction.tex}
-\input{chapters/3_dataset.tex}
-\input{chapters/4_detection.tex}
-\input{chapters/5_tracking.tex}
-\input{chapters/6_reconstruction.tex}
-\input{chapters/7_evaluation.tex}
-\input{chapters/8_results.tex}
-\input{chapters/9_conclusion.tex}
+\input{chapters/introduction.tex}
+\input{chapters/detection.tex}
+\input{chapters/tracking.tex}
+\input{chapters/reconstruction.tex}
+\input{chapters/evaluation.tex}
+\input{chapters/results.tex}
+
 
 \bibliographystyle{splncs04}
 \bibliography{references}
+
+\input{chapters/appendix.tex}
+
 
 \end{document}

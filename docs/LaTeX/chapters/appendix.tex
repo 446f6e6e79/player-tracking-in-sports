@@ -1,0 +1,299 @@
+\appendix
+\providecommand{\multirow}[3]{#3}
+
+\section{Dataset}\label{app:dataset}
+The pipeline is evaluated on a short basketball sequence recorded at the Sanbapolis
+facility by three synchronised cameras (cam\_13, cam\_2, and cam\_4).
+The clip spans 525 frames at 25\,fps (about 21 seconds) and covers a full FIBA court of
+$28 \times 15$\,m.
+
+Each camera's intrinsic parameters are provided.
+The extrinsics are estimated by solving the Perspective-n-Point problem from manually
+selected court landmarks on the first frame, with lens distortion modelled directly
+inside the solver.
+
+For evaluation, ground-truth 2D bounding boxes are annotated on every fifth frame.
+The detector recognises the ball as a single class and each player as its own identity
+class; it was fine-tuned on a separate dataset from the same domain, covering different
+actions of the same game.
+
+\section{Pipeline Parameters}\label{app:parameters}
+The following tables list the parameters used at each stage of the pipeline.
+
+\begin{table}[H]
+\centering
+\caption{MOG2 background-subtraction parameters.}
+\label{tab:par-mog2}
+\small
+\begin{tabular}{lr}
+\toprule
+Parameter & Value \\
+\midrule
+Learning rate            & $-1$ (adaptive) \\
+History (frames)         & 1000 \\
+Variance threshold       & 25 \\
+Opening kernel (px)      & 7 \\
+Closing kernel (px)      & 11 \\
+Min.\ contour area (px$^2$) & 1500 \\
+Max.\ contour area (px$^2$) & 200000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{YOLO detection parameters (pre-trained, fine-tuned multi-pass, and NMS).}
+\label{tab:par-yolo}
+\small
+\begin{tabular}{lr}
+\toprule
+Parameter & Value \\
+\midrule
+\multicolumn{2}{l}{\textit{Pre-trained YOLOv11}} \\
+\quad Confidence threshold      & 0.4 \\
+\quad Built-in NMS IoU          & 0.45 \\
+\quad Inference size (px)       & 640 \\
+\midrule
+\multicolumn{2}{l}{\textit{Fine-tuned YOLOv26 (multi-pass)}} \\
+\quad Player confidence         & 0.3 \\
+\quad Player low-conf band      & 0.15 \\
+\quad Ball confidence           & 0.2 \\
+\quad Player inference size (px) & 1280 \\
+\quad Ball inference size (px)   & 1600 \\
+\midrule
+\multicolumn{2}{l}{\textit{Class-agnostic NMS}} \\
+\quad IoU suppression threshold & 0.75 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Tracking parameters (SORT and DeepSORT).}
+\label{tab:par-tracking}
+\small
+\begin{tabular}{lr}
+\toprule
+Parameter & Value \\
+\midrule
+\multicolumn{2}{l}{\textit{SORT}} \\
+\quad Max.\ IoU distance        & 0.8 \\
+\quad Max.\ age (frames)        & 60 \\
+\quad Confirmation hits         & 2 \\
+\midrule
+\multicolumn{2}{l}{\textit{DeepSORT}} \\
+\quad Max.\ IoU distance        & 0.8 \\
+\quad Max.\ appearance distance & 0.2 \\
+\quad Max.\ age (frames)        & 60 \\
+\quad Confirmation hits         & 2 \\
+\quad Feature budget per track  & 100 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{2D trajectory smoothing, triangulation, and 3D smoothing parameters.}
+\label{tab:par-geometry}
+\small
+\begin{tabular}{lr}
+\toprule
+Parameter & Value \\
+\midrule
+\multicolumn{2}{l}{\textit{2D trajectory smoothing}} \\
+\quad Max.\ interpolated gap (frames) & 5 \\
+\quad EMA weight $\alpha$              & 0.5 \\
+\midrule
+\multicolumn{2}{l}{\textit{Triangulation}} \\
+\quad Ground inlier gate (mm)   & 600 \\
+\quad Ball reprojection gate (px) & 30 \\
+\quad Minimum views             & 2 \\
+\midrule
+\multicolumn{2}{l}{\textit{3D trajectory smoothing}} \\
+\quad Position noise std (mm)        & 30 \\
+\quad Velocity noise std (mm/frame)  & 60 \\
+\quad Measurement noise std (mm)     & 80 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Detailed Results}\label{app:results}
+
+\begin{table}[H]
+\centering
+\caption{Detection results across cameras (IoU threshold = 0.5).}
+\label{tab:app-detection}
+\small
+\begin{tabular}{llrrrr}
+\toprule
+Method & Camera & Precision & Recall & $F_1$ & Mean IoU \\
+\midrule
+\multirow{3}{*}{MOG2}
+  & cam\_13 & 0.471 & 0.262 & 0.337 & 0.651 \\
+  & cam\_2  & 0.345 & 0.408 & 0.374 & 0.663 \\
+  & cam\_4  & 0.328 & 0.293 & 0.309 & 0.700 \\
+\midrule
+\multirow{3}{*}{YOLO pre-trained}
+  & cam\_13 & 0.834 & 0.602 & 0.699 & 0.748 \\
+  & cam\_2  & 0.819 & 0.781 & 0.800 & 0.785 \\
+  & cam\_4  & 0.927 & 0.807 & 0.862 & 0.808 \\
+\midrule
+\multirow{3}{*}{YOLO fine-tuned}
+  & cam\_13 & 0.872 & 0.732 & 0.796 & 0.758 \\
+  & cam\_2  & 0.835 & 0.761 & 0.796 & 0.757 \\
+  & cam\_4  & 0.923 & 0.822 & 0.870 & 0.796 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Identity tracking metrics (IoU threshold = 0.5).}
+\label{tab:app-identity}
+\small
+\begin{tabular}{llrrr}
+\toprule
+Tracker & Camera & IDP & IDR & IDF1 \\
+\midrule
+\multirow{3}{*}{SORT}
+  & cam\_13 & 0.660 & 0.514 & 0.590 \\
+  & cam\_2  & 0.743 & 0.607 & 0.668 \\
+  & cam\_4  & 0.768 & 0.605 & 0.679 \\
+\midrule
+\multirow{3}{*}{DeepSORT}
+  & cam\_13 & 0.588 & 0.533 & 0.569 \\
+  & cam\_2  & 0.617 & 0.603 & 0.610 \\
+  & cam\_4  & 0.670 & 0.605 & 0.638 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{HOTA tracking metrics.}
+\label{tab:app-hota}
+\small
+\begin{tabular}{llrrrr}
+\toprule
+Tracker & Camera & HOTA & DetA & AssA & LocA \\
+\midrule
+\multirow{3}{*}{SORT}
+  & cam\_13 & 0.438 & 0.484 & 0.398 & 0.797 \\
+  & cam\_2  & 0.517 & 0.515 & 0.522 & 0.794 \\
+  & cam\_4  & 0.542 & 0.575 & 0.514 & 0.829 \\
+\midrule
+\multirow{3}{*}{DeepSORT}
+  & cam\_13 & 0.434 & 0.469 & 0.405 & 0.769 \\
+  & cam\_2  & 0.480 & 0.453 & 0.511 & 0.761 \\
+  & cam\_4  & 0.521 & 0.553 & 0.495 & 0.798 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Reprojection error of triangulated 3D points.}
+\label{tab:app-reprojection}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Camera & Mean (px) & Median (px) & RMSE (px) & Acc@5px & Acc@10px & Acc@20px \\
+\midrule
+cam\_13 &  51.3 & 28.9 &  87.7 & 0.135 & 0.221 & 0.349 \\
+cam\_2  & 140.0 & 94.5 & 278.7 & 0.028 & 0.047 & 0.094 \\
+cam\_4  & 135.0 & 50.0 & 296.2 & 0.168 & 0.214 & 0.295 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Trajectory error of projected 3D tracks vs.\ ground-truth 2D annotations.}
+\label{tab:app-trajectory}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Camera & ADE (px) & FDE (px) & MTE (px) & Fragments \\
+\midrule
+cam\_13 &  976.8 &  849.8 & 1047.5 & 2 \\
+cam\_2  & 1066.0 & 1279.1 & 1181.4 & 5 \\
+cam\_4  & 1838.2 & 1689.1 & 1899.9 & 5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Qualitative Outputs}\label{app:figures}
+The figures below are the per-stage visual outputs produced by the pipeline notebook on
+cam\_13.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../media/appendix/01_open_video_and_read_frames.png}
+  \caption{Raw input frame.}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../media/appendix/02_inspect_mog2_detections.png}
+  \caption{MOG2 foreground mask.}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../media/appendix/03_inspect_mog2_detections.png}
+  \caption{MOG2 detections overlaid on the frame.}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../media/appendix/04_inspect_yolo_detections.png}
+  \caption{Pre-trained YOLOv11 detections.}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../media/appendix/05_inspect_merged_detections.png}
+  \caption{Fine-tuned YOLO merged player and ball detections.}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../media/appendix/06_inspect_yolo_detections_with_class_agnostic_nms.png}
+  \caption{Detections after class-agnostic NMS.}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../media/appendix/07_inspect_sort_tracks.png}
+  \caption{SORT tracks.}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../media/appendix/08_inspect_resolved_tracks.png}
+  \caption{SORT tracks after label resolution.}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../media/appendix/09_inspect_deepsort_tracks.png}
+  \caption{DeepSORT tracks.}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../media/appendix/10_inspect_resolved_labels.png}
+  \caption{DeepSORT tracks after smoothing and label resolution.}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../media/appendix/11_inspect_3d_reconstructions.png}
+  \caption{Triangulated 3D reconstruction (top view).}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../media/appendix/12_inspect_smoothed_3d_reconstructions.png}
+  \caption{Smoothed 3D reconstruction (top view).}
+\end{figure}

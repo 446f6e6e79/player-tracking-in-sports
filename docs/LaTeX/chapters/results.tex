@@ -1,0 +1,51 @@
+\section{Results}\label{sec:results}
+
+We summarise here the final tracking and trajectory results.
+The full set of detection, tracking, and geometry tables, together with the per-stage
+qualitative outputs and all pipeline parameters, is reported in the appendix
+(Appendices~\ref{app:parameters}--\ref{app:figures}).
+
+\subsection{Tracking}
+Table~\ref{tab:results-tracking} reports the metrics of our final tracker, DeepSORT,
+across the three cameras.
+
+\begin{table}[H]
+\centering
+\caption{Final tracking results (DeepSORT).}
+\label{tab:results-tracking}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Camera & IDF1 & HOTA & DetA & AssA \\
+\midrule
+cam\_13 & 0.569 & 0.434 & 0.469 & 0.405 \\
+cam\_2  & 0.610 & 0.480 & 0.453 & 0.511 \\
+cam\_4  & 0.638 & 0.521 & 0.553 & 0.495 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+DeepSORT maintains identities reasonably well across all views, with the best scores on cam\_4.
+The similar DetA and AssA values indicate that detection recall, rather than association, is the main factor limiting tracking quality on this short clip.
+
+\subsection{Trajectory}
+Table~\ref{tab:results-trajectory} reports the error of the reconstructed 3D tracks projected back onto the annotated 2D trajectories.
+
+\begin{table}[H]
+\centering
+\caption{Trajectory error of projected 3D tracks vs.\ ground-truth 2D annotations.}
+\label{tab:results-trajectory}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Camera & ADE (px) & FDE (px) & MTE (px) & Fragments \\
+\midrule
+cam\_13 &  976.8 &  849.8 & 1047.5 & 2 \\
+cam\_2  & 1066.0 & 1279.1 & 1181.4 & 5 \\
+cam\_4  & 1838.2 & 1689.1 & 1899.9 & 5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The trajectory errors are large across all views, with the low fragment count showing that the tracks still cover the annotated span almost without gaps.
+The dominant source of error is calibration accuracy: a bias in the estimated camera pose propagates directly into a constant positional offset in the reconstructed trajectories.
