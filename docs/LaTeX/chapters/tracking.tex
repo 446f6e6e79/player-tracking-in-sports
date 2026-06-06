@@ -1,41 +1,56 @@
 \section{Tracking}\label{sec:tracking}
-This section progresses from the SORT baseline to a DeepSORT tracker with several
-robustness mechanisms, and finally to a label resolution step.
 
-\subsection{Simple Online and Realtime Tracking (SORT)}
-As a baseline tracker, we adopt Simple Online and Realtime Tracking (SORT) \cite{sort}.
-Each track is propagated forward by a Kalman filter under a constant-velocity motion model, and the predicted boxes are associated to the new detections via the Hungarian algorithm, using spatial overlap (IoU) as the matching cost.
+To maintain continuous trajectories across frames, the temporal tracking framework transitions from a purely spatial baseline to an appearance-robust architecture. 
+As a foundational baseline, we employ Simple Online and Realtime Tracking (SORT) \cite{sort}, which propagates tracks via a Kalman filter and couples them to incoming detections using the Hungarian algorithm based on Intersection-over-Union (IoU) proximity.
+However, SORT's reliance on spatial overlap causes frequent identity switches when players cross paths. 
+To overcome this, we transition to an appearance-precedent DeepSORT framework with robust tracking and label arbitration mechanisms to maintain identity consistency.
 
-Its main limitation is that it relies on proximity alone, with no notion of appearance: when two players cross, their predicted boxes overlap and the tracker frequently swaps their identities.
+% This section progresses from the SORT baseline to a DeepSORT tracker with several
+% robustness mechanisms, and finally to a label resolution step.
+
+% \subsection{Simple Online and Realtime Tracking (SORT)}
+% As a baseline tracker, we adopt Simple Online and Realtime Tracking (SORT) \cite{sort}.
+% Each track is propagated forward by a Kalman filter under a constant-velocity motion model, and the predicted boxes are associated to the new detections via the Hungarian algorithm, using spatial overlap (IoU) as the matching cost.
+
+% Its main limitation is that it relies on proximity alone, with no notion of appearance: when two players cross, their predicted boxes overlap and the tracker frequently swaps their identities.
 
 \subsection{DeepSORT}
 To minimize identity swaps, our final tracking framework utilizes DeepSORT \cite{deepsort}, which augments the traditional Kalman filter motion model with appearance cues.
 For each detection, a lightweight OSNet architecture \cite{reid} extracts an appearance embedding, appended to a rolling gallery for each active trajectory. 
 Gating and association proceed via a matching cascade that prioritizes appearance similarity over spatial overlap.
 
-On top of this base we introduce four mechanisms that make tracking more robust to the occlusions, missed detections, and noise typical of our footage.
+On top of this base we introduce several improvements.
+The \textbf{confidence-aware Kalman update (NSA)} reduces state-correction jitter: instead of weighing every bounding-box update uniformly, we scale the measurement covariance by the detection confidence.
+\textbf{Low-confidence recovery (ByteTrack)} \cite{bytetrack} matches unmatched tracks against low-confidence detections using spatial overlap, maintaining continuity through partial occlusions.
+To prevent template corruption, these noisy boxes are excluded from appearance-embedding updates.
+\textbf{Track resurrection} mitigates prolonged occlusions by retaining the appearance galleries of recently terminated tracks for a brief window.
+If a newly detected player closely matches an inactive gallery, their original identity is restored rather than initializing a new track.
+Finally, \textbf{coasting} bridges brief gaps by reporting a track's Kalman-predicted position while unmatched, provided the prediction remains within the frame bounds and does not overlap an already assigned bounding box.
 
-\subsubsection{Confidence-Aware Kalman Update (NSA)}
-Standard Kalman filtering weighs all bounding box updates uniformly during state correction.
-To minimize tracking jitter, we scale the measurement covariance by the detection confidence, ensuring high-confidence detections exhibit greater influence than uncertain ones.
+A final \textbf{label resolution} step unifies the detector's per-frame class predictions across each trajectory.
+Each track is assigned its confidence-weighted majority label, with identity conflicts between tracks resolved in favor of the higher-confidence prediction.
+The ball category is exempt from this unique-identity arbitration.
 
-\subsubsection{Low-Confidence Recovery (ByteTrack)}
-Low-confidence detections often represent genuine players experiencing transient occlusion or motion blur.
-Adopting the ByteTrack \cite{bytetrack} paradigm, unmatched tracks are given a second-pass association against these low-confidence boxes based strictly on spatial overlap.
-This recovery mechanism maintains track continuity through partial occlusions; however, to prevent gallery corruption from noisy bounding boxes, these detections are excluded from appearance embedding updates.
+% \subsubsection{Confidence-Aware Kalman Update (NSA)}
+% Standard Kalman filtering weighs all bounding box updates uniformly during state correction.
+% To minimize tracking jitter, we scale the measurement covariance by the detection confidence, ensuring high-confidence detections exhibit greater influence than uncertain ones.
 
-\subsubsection{Track Resurrection}
-When a trajectory is lost due to prolonged occlusion, standard trackers terminate the track, causing a re-emerging player to receive a new identity.
-We retain appearance galleries of recently terminated tracks for a short temporal window and restore an original identity when a new detection closely matches a retained gallery.
+% \subsubsection{Low-Confidence Recovery (ByteTrack)}
+% Low-confidence detections often represent genuine players experiencing transient occlusion or motion blur.
+% Adopting the ByteTrack \cite{bytetrack} paradigm, unmatched tracks are given a second-pass association against these low-confidence boxes based strictly on spatial overlap.
+% This recovery mechanism maintains track continuity through partial occlusions; however, to prevent gallery corruption from noisy bounding boxes, these detections are excluded from appearance embedding updates.
 
-%#TODO: Maybe could be removed that and merged somewhere else
-\subsubsection{Coasting}
-When a track is momentarily left unmatched, it continues to report its Kalman-predicted box so that short gaps are bridged, provided this prediction remains within the frame and does not overlap a box already assigned to another track.
+% \subsubsection{Track Resurrection}
+% When a trajectory is lost due to prolonged occlusion, standard trackers terminate the track, causing a re-emerging player to receive a new identity.
+% We retain appearance galleries of recently terminated tracks for a short temporal window and restore an original identity when a new detection closely matches a retained gallery.
 
-\subsection{Label Resolution}
-Because the fine-tuned detector assigns unique class labels to individual player identities, a single trajectory may accumulate conflicting class predictions across frames.
-To resolve this, each track is assigned its confidence-weighted majority label, with any identity claimed by two tracks kept by the more confident one and the other taking its next-best label.
-The ball class is exempt from this arbitration procedure, as it represents a global category rather than a mutually exclusive unique identity.
+% \subsubsection{Coasting}
+% When a track is momentarily left unmatched, it continues to report its Kalman-predicted box so that short gaps are bridged, provided this prediction remains within the frame and does not overlap a box already assigned to another track.
+
+% \subsection{Label Resolution}
+% Because the fine-tuned detector assigns unique class labels to individual player identities, a single trajectory may accumulate conflicting class predictions across frames.
+% To resolve this, each track is assigned its confidence-weighted majority label, with any identity claimed by two tracks kept by the more confident one and the other taking its next-best label.
+% The ball class is exempt from this arbitration procedure, as it represents a global category rather than a mutually exclusive unique identity.
 
 \begin{figure}[h]
   \centering

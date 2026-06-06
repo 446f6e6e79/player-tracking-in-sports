@@ -1,21 +1,26 @@
 \section{Detection}\label{sec:detection}
 
-This section describes the three detection approaches evaluated in this work, progressing from a classical background subtraction baseline to a fine-tuned deep learning model with multi-pass inference.
+The evolution of object detection paradigms in our framework moves from classical computer vision to domain-adapted deep learning.
+As an initial baseline, a Mixture of Gaussians (MOG2) background subtraction approach \cite{survey} enhanced with CLAHE preprocessing \cite{clahe} proves highly vulnerable to court floor specularities, player stasis, and dynamic audience backgrounds.
+Transitioning to an object detection paradigm via a COCO-pre-trained YOLOv11 model \cite{yolo_paper} substantially mitigates these spatial errors by extracting robust semantic features.
+However, significant domain gaps persist with the off-the-shelf model: the basketball is entirely absent from the pre-trained taxonomy, and players and referees are uniformly grouped under a single ``person'' class, precluding downstream identity distinction and necessitating a fine-tuned, domain-specific architecture.
 
-\subsection{Background Subtraction (MOG2)}
-As a baseline, we employ Mixture of Gaussians (MOG2) background subtraction \cite{survey}.
-To mitigate illumination variations, frames are preprocessed using Contrast Limited Adaptive Histogram Equalization (CLAHE) \cite{clahe}.
-The generated foreground mask is subsequently refined via morphological operations and connected component analysis.
+% This section describes the three detection approaches evaluated in this work, progressing from a classical background subtraction baseline to a fine-tuned deep learning model with multi-pass inference.
 
-Despite these enhancements, this baseline suffers from four primary failure modes.
-First, floor specularities create intense reflections and shadows that evade MOG2's color-based shadow detection.
-Then, temporarily stationary players are erroneously integrated into the background model, and dynamic backgrounds, such as moving spectators, introduce persistent false positives.
+% \subsection{Background Subtraction (MOG2)}
+% As a baseline, we employ Mixture of Gaussians (MOG2) background subtraction \cite{survey}.
+% To mitigate illumination variations, frames are preprocessed using Contrast Limited Adaptive Histogram Equalization (CLAHE) \cite{clahe}.
+% The generated foreground mask is subsequently refined via morphological operations and connected component analysis.
 
-\subsection{Pre-Trained YOLOv11}
-To overcome MOG2 limitations, we deploy a YOLOv11 architecture \cite{yolo_paper} pre-trained on the COCO dataset.
-Transitioning to this object detection paradigm substantially improves accuracy and mitigates the limitations of the background subtraction baseline.
+% Despite these enhancements, this baseline suffers from four primary failure modes.
+% First, floor specularities create intense reflections and shadows that evade MOG2's color-based shadow detection.
+% Then, temporarily stationary players are erroneously integrated into the background model, and dynamic backgrounds, such as moving spectators, introduce persistent false positives.
 
-However, two distinct domain gaps persist: the sports ball is entirely absent from the pre-trained taxonomy, and players and referees are uniformly classified as ``person'', precluding downstream identity distinction.
+% \subsection{Pre-Trained YOLOv11}
+% To overcome MOG2 limitations, we deploy a YOLOv11 architecture \cite{yolo_paper} pre-trained on the COCO dataset.
+% Transitioning to this object detection paradigm substantially improves accuracy and mitigates the limitations of the background subtraction baseline.
+
+% However, two distinct domain gaps persist: the sports ball is entirely absent from the pre-trained taxonomy, and players and referees are uniformly classified as ``person'', precluding downstream identity distinction.
 
 \subsection{Fine-Tuned YOLOv26 with Multi-Pass Inference}
 To bridge these domain gaps, we adopt the YOLOv26 architecture and fine-tune its backbone on a domain-specific annotated dataset.
@@ -24,10 +29,13 @@ The model is trained to recognise each player individually, as well as the ball,
 However, because the ball occupies a minimal pixel area, standard single-pass inference downsamples it too aggressively for reliable localization.
 We circumvent this spatial resolution trade-off via a dual-pass inference strategy: a primary pass optimized for player detection, and a parallel high-resolution pass configured with a permissive confidence threshold specifically tailored to isolate the ball.
 The resulting detections are subsequently unified into a single composite output.
+
+Finally, to eliminate duplicate bounding boxes when a player is detected under multiple conflicting identities, we substitute standard non-maximum suppression with a class-agnostic variant \cite{nms}.
+This suppresses redundant detections by spatial overlap alone, ensuring a single clean bounding box per player is passed to the downstream tracker.
  
-\subsubsection{Class-Agnostic NMS}
-A player may be detected multiple times under different identities, which ordinary non-maximum suppression cannot merge since it only compares same-identity boxes.
-We instead apply a class-agnostic variant \cite{nms}, suppressing by spatial overlap alone to keep one box per player, yielding the final detections passed to the tracker.
+% \subsubsection{Class-Agnostic NMS}
+% A player may be detected multiple times under different identities, which ordinary non-maximum suppression cannot merge since it only compares same-identity boxes.
+% We instead apply a class-agnostic variant \cite{nms}, suppressing by spatial overlap alone to keep one box per player, yielding the final detections passed to the tracker.
 
 \begin{figure}[h]
   \centering
