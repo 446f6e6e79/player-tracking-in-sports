@@ -1,9 +1,8 @@
 \section{Tracking}\label{sec:tracking}
 
-To maintain continuous trajectories across frames, the temporal tracking framework transitions from a purely spatial baseline to an appearance-robust architecture. 
-As a foundational baseline, we employ Simple Online and Realtime Tracking (SORT) \cite{sort}, which propagates tracks via a Kalman filter and couples them to incoming detections using the Hungarian algorithm based on Intersection-over-Union (IoU) proximity.
-However, SORT's reliance on spatial overlap causes frequent identity switches when players cross paths. 
-To overcome this, we transition to an appearance-precedent DeepSORT framework with robust tracking and label arbitration mechanisms to maintain identity consistency.
+To maintain continuous trajectories across frames, the tracking framework evolves from a purely spatial baseline to an architecture robust to appearance variation.
+As a baseline, we employ Simple Online and Realtime Tracking (SORT) \cite{sort}, which propagates tracks using a Kalman filter and associates predicted boxes to incoming detections via the Hungarian algorithm using Intersection-over-Union (IoU) overlap.
+SORT's reliance on spatial overlap, however, leads to frequent identity switches when players cross paths.
 
 % This section progresses from the SORT baseline to a DeepSORT tracker with several
 % robustness mechanisms, and finally to a label resolution step.
@@ -15,21 +14,19 @@ To overcome this, we transition to an appearance-precedent DeepSORT framework wi
 % Its main limitation is that it relies on proximity alone, with no notion of appearance: when two players cross, their predicted boxes overlap and the tracker frequently swaps their identities.
 
 \subsection{DeepSORT}
-To minimize identity swaps, our final tracking framework utilizes DeepSORT \cite{deepsort}, which augments the traditional Kalman filter motion model with appearance cues.
-For each detection, a lightweight OSNet architecture \cite{reid} extracts an appearance embedding, appended to a rolling gallery for each active trajectory. 
-Gating and association proceed via a matching cascade that prioritizes appearance similarity over spatial overlap.
+Our tracking framework adopts DeepSORT \cite{deepsort} to reduce identity swaps by augmenting the Kalman-filter motion model with appearance information.
+For each detection, a lightweight \emph{OSNet} \cite{reid} produces an appearance embedding that is appended to a per-track rolling gallery.
+Association is performed by a matching cascade that prioritizes appearance similarity before spatial overlap.
 
-On top of this base we introduce several improvements.
-The \textbf{confidence-aware Kalman update (NSA)} reduces state-correction jitter: instead of weighing every bounding-box update uniformly, we scale the measurement covariance by the detection confidence.
-\textbf{Low-confidence recovery (ByteTrack)} \cite{bytetrack} matches unmatched tracks against low-confidence detections using spatial overlap, maintaining continuity through partial occlusions.
-To prevent template corruption, these noisy boxes are excluded from appearance-embedding updates.
-\textbf{Track resurrection} mitigates prolonged occlusions by retaining the appearance galleries of recently terminated tracks for a brief window.
-If a newly detected player closely matches an inactive gallery, their original identity is restored rather than initializing a new track.
-Finally, \textbf{coasting} bridges brief gaps by reporting a track's Kalman-predicted position while unmatched, provided the prediction remains within the frame bounds and does not overlap an already assigned bounding box.
+Building on this foundation, we introduce several improvements.
+The \textbf{Confidence-Aware Kalman Update (NSA)} reduces state-correction jitter by scaling the measurement covariance according to detection confidence rather than treating all bounding-box updates equally.
+\textbf{Low-Confidence Recovery (ByteTrack)} \cite{bytetrack} performs a second-pass association between unmatched tracks and low-confidence detections using spatial overlap, preserving continuity through partial occlusions.
+\textbf{Track Resurrection} addresses prolonged occlusions by retaining the appearance galleries of recently terminated tracks for a brief temporal window; when a newly detected player closely matches a retained gallery, the original identity is restored rather than initializing a new track.
+Finally, \textbf{Coasting} bridges short gaps by emitting a track's Kalman-predicted position while it remains unmatched, provided the prediction remains within frame bounds and does not overlap an already-assigned bounding box.
 
-A final \textbf{label resolution} step unifies the detector's per-frame class predictions across each trajectory.
-Each track is assigned its confidence-weighted majority label, with identity conflicts between tracks resolved in favor of the higher-confidence prediction.
-The ball category is exempt from this unique-identity arbitration.
+A final \textbf{Label Resolution} step unifies the detector's per-frame class predictions across each trajectory.
+Each track is assigned its confidence-weighted majority label; identity conflicts between tracks are resolved in favor of the higher-confidence prediction.
+The ball category is exempt from unique-identity arbitration.
 
 % \subsubsection{Confidence-Aware Kalman Update (NSA)}
 % Standard Kalman filtering weighs all bounding box updates uniformly during state correction.
@@ -55,7 +52,5 @@ The ball category is exempt from this unique-identity arbitration.
 \begin{figure}[h]
   \centering
   \includegraphics[width=\linewidth]{../media/fig_tracking.png}
-  \caption{Sample tracking output from DeepSORT with resolved identities
-           on cam\_13 (three selected frames).}
-  \label{fig:tracking}
+  \caption{Sample tracking output from DeepSORT on cam\_13.}
 \end{figure}

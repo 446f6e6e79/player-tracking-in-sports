@@ -1,9 +1,9 @@
 \section{Introduction}\label{sec:intro}
 
-Vision-based tracking provides a scalable alternative to expensive sports hardware, yet basketball's rapid movements, mutual occlusions, and floor specularities pose severe challenges.
-While modern pipelines have shifted from classical background subtraction \cite{survey} toward tracking-by-detection frameworks \cite{sort}, maintaining identity consistency during close-range crossings remains a bottleneck.
-This work introduces an end-to-end multi-view pipeline that bridges these gaps by deploying a domain-adapted YOLOv26 detector \cite{yolo_paper} coupled with an appearance-precedent DeepSORT tracker \cite{deepsort,reid}.
-By leveraging multi-camera geometry and SVD-based triangulation, the system successfully resolves 2D ambiguities to reconstruct smooth, continuous 3D trajectories across the court.
+Vision-based tracking provides a scalable alternative to expensive sports hardware, but basketball's rapid movements, mutual occlusions, and specular floor reflections pose severe challenges.
+Although modern pipelines have shifted from classical background subtraction \cite{survey} to tracking-by-detection approaches \cite{sort}, maintaining identity consistency during close-range interactions remains a bottleneck.
+This work introduces an end-to-end multi-view pipeline that addresses these issues using a domain-adapted YOLOv26 detector \cite{yolo_paper} combined with an appearance-based DeepSORT tracker \cite{deepsort,reid}.
+By leveraging multi-camera geometry and SVD-based triangulation, the system resolves 2D ambiguities and reconstructs smooth, continuous 3D trajectories across the court.
 
 % Vision-based tracking provides a scalable alternative to expensive sports analytics hardware, but basketball's rapid movements, mutual occlusions, motion blur, and specular floor reflections pose severe challenges. 
 

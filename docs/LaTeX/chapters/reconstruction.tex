@@ -1,18 +1,18 @@
 \section{3D Reconstruction}\label{sec:reconstruction}
 
-Having recovered the per-camera 2D trajectories, we lift them into a unified 3D scene representation shared by all three cameras.
-This geometric lifting relies on intrinsic matrices known \textit{a priori}, while extrinsic parameters and lens distortion are estimated by solving the Perspective-n-Point (PnP) problem, mapping manually annotated 2D court landmarks from the initial frame to their known 3D world coordinates.
+Having recovered per-camera 2D trajectories, we lift them into a unified 3D scene representation shared by all three cameras.
+This geometric lifting uses intrinsic matrices known a priori; extrinsic parameters and lens-distortion coefficients are estimated by solving the Perspective-n-Point (PnP) problem, mapping manually annotated 2D court landmarks in the initial frame to their corresponding 3D world coordinates.
 
-For triangulation, detections are grouped by identity and frame across cameras and undistorted.
-The 3D reconstruction then bifurcates based on the distinct physical constraints of the targets.
-Because players move on the court floor, each camera's bottom bounding-box pixel is back-projected into a ray whose intersection with the floor plane yields a ground position.
-This floor constraint enables localization from a single view during occlusions, while multi-view estimates are averaged after outlier rejection.
-Conversely, the airborne ball is triangulated from the rays of at least two cameras using the Direct Linear Transform (DLT) solved via Singular Value Decomposition (SVD).
-Views with high reprojection errors are iteratively discarded and the point re-triangulated.
+For triangulation, detections are grouped by identity and frame across cameras, then undistorted through rectification.
+Reconstruction proceeds separately for players and the ball due to their distinct physical constraints.
+Because players move on the court floor, each camera's bottom bounding-box pixel is back-projected into a ray whose intersection with the floor plane yields the ground position.
+This floor constraint enables single-view localisation during occlusions; multi-view estimates are produced by averaging after discarding outliers.
+The airborne ball is triangulated from rays from at least two cameras using the Direct Linear Transform (DLT), solved via Singular Value Decomposition (SVD).
+Views with high reprojection error are iteratively discarded and the point re-triangulated.
 
-Finally, trajectory smoothing removes residual noise from detection jitter and calibration errors.
-Each 3D trajectory is filtered forward via a Kalman filter and refined by a Rauch--Tung--Striebel (RTS) backward pass.
-This bidirectional processing uses past and future observations to correct states, reject spatial jumps, and split trajectories across extended gaps to prevent false extrapolation.
+Trajectory smoothing removes residual noise from detection jitter and calibration error.
+Each 3D trajectory is filtered forward with a Kalman filter and refined by a Rauch--Tung--Striebel (RTS) backward pass.
+This bidirectional processing uses past and future observations to correct states, reject implausible spatial jumps, and split trajectories across extended gaps to avoid false extrapolation.
 
 % \subsection{Camera Calibration}
 % Intrinsic camera matrices are known a priori.
@@ -43,6 +43,6 @@ This bidirectional processing uses past and future observations to correct state
 \begin{figure}[h]
   \centering
   \includegraphics[width=\linewidth]{../media/fig_3d.png}
-  \caption{Reconstructed 3D player and ball positions projected onto the court plane after RTS smoothing.}
+  \caption{Reconstructed 3D player and ball positions projected onto the court plane.}
   \label{fig:reconstruction}
 \end{figure}

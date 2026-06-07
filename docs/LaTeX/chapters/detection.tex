@@ -1,9 +1,9 @@
 \section{Detection}\label{sec:detection}
 
-The evolution of object detection paradigms in our framework moves from classical computer vision to domain-adapted deep learning.
-As an initial baseline, a Mixture of Gaussians (MOG2) background subtraction approach \cite{survey} enhanced with CLAHE preprocessing \cite{clahe} proves highly vulnerable to court floor specularities, player stasis, and dynamic audience backgrounds.
-Transitioning to an object detection paradigm via a COCO-pre-trained YOLOv11 model \cite{yolo_paper} substantially mitigates these spatial errors by extracting robust semantic features.
-However, significant domain gaps persist with the off-the-shelf model: the basketball is entirely absent from the pre-trained taxonomy, and players and referees are uniformly grouped under a single ``person'' class, precluding downstream identity distinction and necessitating a fine-tuned, domain-specific architecture.
+The detection approaches previously employed range from classical computer-vision methods to domain-adapted deep learning.
+As a baseline, we use a Mixture of Gaussians (MOG2) background-subtraction method \cite{survey} with CLAHE preprocessing \cite{clahe}; however, it remains highly vulnerable to court-floor specularities, stationary players, and dynamic spectator backgrounds.
+Adopting an object-detection paradigm with a COCO-pretrained YOLOv11 model \cite{yolo_paper} substantially reduces these spatial errors by leveraging semantic features.
+Nonetheless, important domain gaps remain: the basketball is absent from the pre-trained taxonomy, and players and referees are both labeled as ``person'', preventing identity distinction.
 
 % This section describes the three detection approaches evaluated in this work, progressing from a classical background subtraction baseline to a fine-tuned deep learning model with multi-pass inference.
 
@@ -26,12 +26,12 @@ However, significant domain gaps persist with the off-the-shelf model: the baske
 To bridge these domain gaps, we adopt the YOLOv26 architecture and fine-tune its backbone on a domain-specific annotated dataset.
 The model is trained to recognise each player individually, as well as the ball, so identity is resolved directly by the detector.
 
-However, because the ball occupies a minimal pixel area, standard single-pass inference downsamples it too aggressively for reliable localization.
-We circumvent this spatial resolution trade-off via a dual-pass inference strategy: a primary pass optimized for player detection, and a parallel high-resolution pass configured with a permissive confidence threshold specifically tailored to isolate the ball.
-The resulting detections are subsequently unified into a single composite output.
+Because the ball occupies a very small pixel area, single-pass inference often downsamples it too aggressively for reliable localisation.
+We address this by employing a dual-pass inference strategy: a primary pass optimised for player detection, alongside a high-resolution pass with a permissive confidence threshold to improve ball recall.
+Detections from both passes are then merged into a single composite output.
 
-Finally, to eliminate duplicate bounding boxes when a player is detected under multiple conflicting identities, we substitute standard non-maximum suppression with a class-agnostic variant \cite{nms}.
-This suppresses redundant detections by spatial overlap alone, ensuring a single clean bounding box per player is passed to the downstream tracker.
+To remove duplicate bounding boxes produced by conflicting identity predictions, we replace standard non-maximum suppression with a class-agnostic variant \cite{nms}.
+This variant suppresses detections solely on spatial overlap, ensuring a single, clean bounding box per player is forwarded to the tracker.
  
 % \subsubsection{Class-Agnostic NMS}
 % A player may be detected multiple times under different identities, which ordinary non-maximum suppression cannot merge since it only compares same-identity boxes.
@@ -40,7 +40,5 @@ This suppresses redundant detections by spatial overlap alone, ensuring a single
 \begin{figure}[h]
   \centering
   \includegraphics[width=\linewidth]{../media/fig_detection.png}
-  \caption{Sample detection output from fine-tuned YOLOv26 with class-agnostic NMS
-           on cam\_13 (three selected frames).}
-  \label{fig:detection}
+  \caption{Sample detection output from fine-tuned YOLOv26 on cam\_13.}
 \end{figure}

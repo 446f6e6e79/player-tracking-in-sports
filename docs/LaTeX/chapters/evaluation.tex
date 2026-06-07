@@ -1,14 +1,13 @@
 \section{Evaluation Metrics}\label{sec:evaluation}
 
-We evaluate each stage of the pipeline separately.
-\textbf{Detection} is measured with precision, recall, and the $F_1$-score, with true positives defined at an Intersection over Union (IoU) threshold of $0.5$.
-
-\textbf{Tracking} is assessed with IDF1 and HOTA \cite{hota}: IDF1 captures identity consistency, while our primary metric, HOTA, is the geometric mean of detection accuracy (DetA) and association accuracy (AssA), averaged over a range of localization thresholds.
-We favour HOTA over traditional metrics such as MOTA, which are biased toward detection errors and poorly reflect tracking continuity.
-
-\textbf{3D geometry} accuracy is evaluated using two primary metrics.
-The \textbf{reprojection error} measures the pixel distance between a triangulated 3D point and its original 2D detection across observing cameras, indicating geometric consistency.
-The \textbf{trajectory error} quantifies tracking accuracy by comparing these 3D trajectories against ground-truth 2D data across all shared frames, reported via the Average (ADE), Final (FDE), and Median (MTE) displacement errors, alongside the number of trajectory fragments.
+\textbf{Detection} is measured using precision, recall, and the $F_1$ score, with true positives defined at an Intersection over Union (IoU) threshold of $0.5$.
+\textbf{Tracking} is assessed using IDF1 and HOTA \cite{hota}.
+IDF1 captures identity consistency, while our primary metric, HOTA, is the geometric mean of detection accuracy (DetA) and association accuracy (AssA), averaged over a range of localization thresholds.
+We favour HOTA over traditional metrics such as MOTA, which are biased toward detection errors and do not adequately reflect tracking continuity.
+\textbf{3D geometry} accuracy is evaluated using two primary metrics, reprojecting the 3D points back onto the image planes.
+The \textbf{reprojection error} measures geometric consistency, which reflects the quality of calibration and triangulation.
+The \textbf{trajectory error} quantifies tracking accuracy by comparing these 3D trajectories against ground-truth 2D data across all shared frames.
+We report the Average Displacement Error (ADE), the Final Displacement Error (FDE), and the Median Trajectory Error (MTE).
 
 % \subsection{Detection Metrics}
 % Detection performance is evaluated using standard precision, recall, and the $F_1$-score, with true positives defined at an Intersection over Union (IoU) threshold of $0.5$.
