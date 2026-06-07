@@ -1,5 +1,14 @@
 # Player Tracking in Sports - Multi-View Tracking and 3D Reconstruction
 
+## Results
+
+<div align="center">
+    <img src="docs/media/comparison.png" alt="Input vs tracked output comparison" width="100%">
+    https://github.com/user-attachments/assets/3d963492-d0b9-4f67-bf52-eaf2bc7ee5cb
+</div>
+
+---
+
 <div align="center">
     <strong>
         <a href="docs/report.pdf">View Full Report (PDF)</a>
