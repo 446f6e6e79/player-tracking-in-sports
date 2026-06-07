@@ -8,22 +8,3 @@ We favour HOTA over traditional metrics such as MOTA, which are biased toward de
 The \textbf{reprojection error} measures geometric consistency, which reflects the quality of calibration and triangulation.
 The \textbf{trajectory error} quantifies tracking accuracy by comparing these 3D trajectories against ground-truth 2D data across all shared frames.
 We report the Average Displacement Error (ADE), the Final Displacement Error (FDE), and the Median Trajectory Error (MTE).
-
-% \subsection{Detection Metrics}
-% Detection performance is evaluated using standard precision, recall, and the $F_1$-score, with true positives defined at an Intersection over Union (IoU) threshold of $0.5$.
-
-% \subsection{Tracking Metrics}
-% We evaluate tracking performance using IDF1 and HOTA \cite{hota}.
-% The IDF1 score measures identity consistency over time by computing the harmonic mean of identity precision and identity recall.
-
-% Our primary metric, HOTA, balances detection and association accuracy by factoring in both detection accuracy (DetA) and association accuracy (AssA).
-% The final HOTA score is computed as the geometric mean of DetA and AssA, averaged over a range of localization thresholds.
-
-% We favor HOTA over traditional MOT metrics like MOTA, which are heavily biased toward detection errors and fail to adequately reflect tracking continuity.
-
-% \subsection{3D Geometry Metrics}
-% We assess 3D geometric fidelity using reprojection and trajectory errors.
-% Reprojection error measures the pixel distance between a triangulated 3D point and its original 2D detection when projected back onto each observing camera's image plane, serving as an indicator of geometric consistency; we report its mean, median, root-mean-square error (RMSE).
-
-% Trajectory error evaluates tracking accuracy by reprojecting the 3D tracks back into the camera views and comparing them per identity against the ground-truth 2D trajectories across all shared frames.
-% This is quantified via the Average Displacement Error (ADE) to measure mean spatial drift, the Final Displacement Error (FDE) to capture long-term accumulation errors, the Median Trajectory Error (MTE) to provide robustness against outlier frames, and the total number of trajectory fragments to index coverage gaps.

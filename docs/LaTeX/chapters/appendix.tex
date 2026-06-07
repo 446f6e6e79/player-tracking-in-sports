@@ -3,14 +3,12 @@
 
 \section{Dataset and Fine-Tuning}\label{app:dataset}
 The pipeline is evaluated on a basketball clip from the Sanbapolis facility, recorded by
-three synchronised cameras (cam\_13, cam\_2, cam\_4) on a FIBA court of $28\times15$\,m.
+three synchronised cameras (cam\_13, cam\_2, cam\_4).
 The clip spans 525 frames at 25\,fps (about 21\,s).
-Camera intrinsics are provided, and ground-truth 2D bounding boxes are annotated on every
-fifth frame for evaluation.
+Camera intrinsics are provided, and ground-truth 2D bounding boxes are annotated on every fifth frame for evaluation.
 
-The detector is fine-tuned on a separate Roboflow dataset from the same game, covering
-different actions and disjoint from the evaluation clip.
-Training starts from YOLOv26m weights and runs for up to 300 epochs (early stopping,
+The detector is fine-tuned on a separate dataset from the same game, covering different actions,
+disjoint from the evaluation clip. Training starts from YOLO26m weights and runs for up to 300 epochs (early stopping,
 patience 30) at $1280$\,px input and batch size 4.
 
 \section{Pipeline Parameters}\label{app:parameters}
@@ -19,54 +17,54 @@ background subtraction (Table~\ref{tab:par-mog2}), YOLO detection and NMS
 (Table~\ref{tab:par-yolo}), tracking (Table~\ref{tab:par-tracking}), and 3D geometry
 (Table~\ref{tab:par-geometry}).
 
-\begin{table}[ht]
-\centering
-\small
-\begin{minipage}[t]{0.48\textwidth}
-\centering
-\caption{MOG2 background subtraction and preprocessing.}
-\label{tab:par-mog2}
-\begin{tabular}{lr}
-\toprule
-Parameter & Value \\
-\midrule
-Learning rate            & $-1$ (adaptive) \\
-Detect shadows           & off \\
-CLAHE clip limit         & 6.0 \\
-CLAHE tile grid          & $8\times8$ \\
-Min.\ blob area (px$^2$) & 500 \\
-Max.\ blob area (px$^2$) & 10000 \\
-\bottomrule
-\end{tabular}
-\end{minipage}
+\begin{table}[H]
+    \centering
+    \small
+    \begin{minipage}[t]{0.48\textwidth}
+        \centering
+        \caption{MOG2 background subtraction and preprocessing.}
+        \label{tab:par-mog2}
+        \begin{tabular}{lr}
+            \toprule
+            Parameter & Value \\
+            \midrule
+            Learning rate            & $-1$ (adaptive) \\
+            Detect shadows           & off \\
+            CLAHE clip limit         & 6.0 \\
+            CLAHE tile grid          & $8\times8$ \\
+            Min.\ blob area (px$^2$) & 500 \\
+            Max.\ blob area (px$^2$) & 10000 \\
+            \bottomrule
+        \end{tabular}
+    \end{minipage}
 \hfill
-\begin{minipage}[t]{0.48\textwidth}
-\centering
-\caption{Geometry: smoothing and triangulation.}
-\label{tab:par-geometry}
-\begin{tabular}{lr}
-\toprule
-Parameter & Value \\
-\midrule
-\multicolumn{2}{l}{\textit{2D trajectory smoothing}} \\
-\quad Max.\ interpolated gap (frames) & 5 \\
-\quad EMA weight $\alpha$              & 0.5 \\
-\multicolumn{2}{l}{\textit{Triangulation}} \\
-\quad Ground inlier gate (mm)     & 600 \\
-\quad Ball reprojection gate (px) & 30 \\
-\quad Minimum views               & 2 \\
-\multicolumn{2}{l}{\textit{3D trajectory smoothing}} \\
-\quad Max.\ join gap (frames)       & 5 \\
-\quad Mahalanobis gate ($\chi^2$)   & 11.345 \\
-\quad Position noise std (mm)       & 30 \\
-\quad Velocity noise std (mm/frame) & 60 \\
-\quad Measurement noise std (mm)    & 80 \\
-\bottomrule
-\end{tabular}
-\end{minipage}
+    \begin{minipage}[t]{0.48\textwidth}
+        \centering
+        \caption{Geometry: smoothing and triangulation.}
+        \label{tab:par-geometry}
+        \begin{tabular}{lr}
+            \toprule
+            Parameter & Value \\
+            \midrule
+            \multicolumn{2}{l}{\textit{2D trajectory smoothing}} \\
+            \quad Max.\ interpolated gap (frames) & 5 \\
+            \quad EMA weight $\alpha$              & 0.5 \\
+            \multicolumn{2}{l}{\textit{Triangulation}} \\
+            \quad Ground inlier gate (mm)     & 600 \\
+            \quad Ball reprojection gate (px) & 30 \\
+            \quad Minimum views               & 2 \\
+            \multicolumn{2}{l}{\textit{3D trajectory smoothing}} \\
+            \quad Max.\ join gap (frames)       & 5 \\
+            \quad Mahalanobis gate ($\chi^2$)   & 11.345 \\
+            \quad Position noise std (mm)       & 30 \\
+            \quad Velocity noise std (mm/frame) & 60 \\
+            \quad Measurement noise std (mm)    & 80 \\
+            \bottomrule
+        \end{tabular}
+    \end{minipage}
 \end{table}
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \small
 \begin{minipage}[t]{0.48\textwidth}
@@ -128,7 +126,7 @@ This section reports per-camera detection (Table~\ref{tab:app-detection}), track
 (Table~\ref{tab:app-tracking}), and 3D geometry errors
 (Table~\ref{tab:app-geometry-errors}).
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \caption{Detection results across cameras (IoU threshold $=0.5$).}
 \label{tab:app-detection}
@@ -155,7 +153,7 @@ Method & Camera & Precision & Recall & $F_1$ & Mean IoU \\
 \end{tabular}
 \end{table}
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \caption{Tracking metrics: identity (IDP, IDR, IDF1) and HOTA (IoU threshold $=0.5$).}
 \label{tab:app-tracking}
@@ -178,7 +176,7 @@ Tracker & Camera & IDP & IDR & IDF1 & HOTA & DetA & AssA & LocA \\
 \end{tabular}
 \end{table}
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \caption{3D geometry errors: reprojection of triangulated points and trajectory error of
 projected tracks. Mean, Median, RMSE, ADE, FDE, and MTE are in px; Acc columns are
@@ -203,92 +201,38 @@ cam\_4  & 135.0 & 50.0 & 296.2 & 0.168 & 0.214 & 0.295 & 1838.2 & 1689.1 & 1900.
 The figures below are the per-stage visual outputs produced by the pipeline notebook on
 cam\_13.
 
-\begin{figure}[ht]
-\centering
-\begin{minipage}[t]{0.49\textwidth}
+\begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{../media/appendix/01_open_video_and_read_frames.png}
   \caption{Raw input frame.}
-\end{minipage}
-\hfill
-\begin{minipage}[t]{0.49\textwidth}
+\end{figure}
+
+\begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{../media/appendix/02_inspect_mog2_detections.png}
   \caption{MOG2 foreground mask.}
-\end{minipage}
 \end{figure}
 
-\begin{figure}[ht]
-\centering
-\begin{minipage}[t]{0.49\textwidth}
+\begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{../media/appendix/03_inspect_mog2_detections.png}
   \caption{MOG2 detections overlaid on the frame.}
-\end{minipage}
-\hfill
-\begin{minipage}[t]{0.49\textwidth}
+\end{figure}
+
+\begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{../media/appendix/04_inspect_yolo_detections.png}
   \caption{Pre-trained YOLOv11 detections.}
-\end{minipage}
 \end{figure}
 
-\begin{figure}[ht]
-\centering
-\begin{minipage}[t]{0.49\textwidth}
-  \centering
-  \includegraphics[width=\linewidth]{../media/appendix/05_inspect_merged_detections.png}
-  \caption{Fine-tuned YOLO merged player and ball detections.}
-\end{minipage}
-\hfill
-\begin{minipage}[t]{0.49\textwidth}
-  \centering
-  \includegraphics[width=\linewidth]{../media/appendix/06_inspect_yolo_detections_with_class_agnostic_nms.png}
-  \caption{Detections after class-agnostic NMS.}
-\end{minipage}
-\end{figure}
-
-\begin{figure}[ht]
-\centering
-\begin{minipage}[t]{0.49\textwidth}
-  \centering
-  \includegraphics[width=\linewidth]{../media/appendix/07_inspect_sort_tracks.png}
-  \caption{SORT tracks.}
-\end{minipage}
-\hfill
-\begin{minipage}[t]{0.49\textwidth}
-  \centering
-  \includegraphics[width=\linewidth]{../media/appendix/08_inspect_resolved_tracks.png}
-  \caption{SORT tracks after label resolution.}
-\end{minipage}
-\end{figure}
-
-\begin{figure}[ht]
-\centering
-\begin{minipage}[t]{0.49\textwidth}
-  \centering
-  \includegraphics[width=\linewidth]{../media/appendix/09_inspect_deepsort_tracks.png}
-  \caption{DeepSORT tracks.}
-\end{minipage}
-\hfill
-\begin{minipage}[t]{0.49\textwidth}
+\begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{../media/appendix/10_inspect_resolved_labels.png}
   \caption{DeepSORT tracks after smoothing and label resolution.}
-\end{minipage}
 \end{figure}
 
-\begin{figure}[ht]
-\centering
-\begin{minipage}[t]{0.49\textwidth}
+\begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth]{../media/appendix/11_inspect_3d_reconstructions.png}
-  \caption{Triangulated 3D reconstruction (top view).}
-\end{minipage}
-\hfill
-\begin{minipage}[t]{0.49\textwidth}
-  \centering
-  \includegraphics[width=\linewidth]{../media/appendix/12_inspect_smoothed_3d_reconstructions.png}
-  \caption{Smoothed 3D reconstruction (top view).}
-\end{minipage}
+  \includegraphics[width=\textwidth]{../media/appendix/12_inspect_smoothed_3d_reconstructions.png}
+  \caption{Smoothed 3D reconstruction.}
 \end{figure}

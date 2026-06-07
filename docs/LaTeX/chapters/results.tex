@@ -1,34 +1,46 @@
-\section{Results}\label{sec:results}
+\section{Evaluation and Results}\label{sec:evaluation_results}
 
 This section summarises the final tracking and trajectory results.
 The complete detection, tracking, and geometry tables, together with per-stage qualitative outputs and all pipeline parameters, are provided in the appendix (Appendices~\ref{app:parameters}--\ref{app:figures}).
 Full video results are available in the accompanying repository.
 
-Table~\ref{tab:results} shows the final tracking metrics.
-The tracker keeps identities reasonably well, however its main limitation is detection recall rather than association.
-This implies that most of its errors are missed players rather than false detections, implying that a good association cannot recover it.
-The comparable detection (DetA) and association (AssA) scores confirm this.
-Across cameras, detection recall and HOTA also rank in the same order, which confirms that detection drives the tracking quality.
+\subsection{Detection and Tracking}
+
+\textbf{Detection} is measured using precision, recall, and the $F_1$ score, with true positives defined at an Intersection over Union (IoU) threshold of 0.5 (Table~\ref{tab:results-detail}).
+\textbf{Tracking} is assessed using IDF1 and HOTA \cite{hota}.
+IDF1 captures identity consistency, while our primary metric, HOTA, is the geometric mean of detection accuracy (DetA) and association accuracy (AssA), averaged over a range of localization thresholds.
+We favour HOTA over traditional metrics such as MOTA, which are biased toward detection errors and do not adequately reflect tracking continuity.
+
+As shown in Table~\ref{tab:results}, the tracker keeps identities reasonably well; however, its main limitation is detection recall rather than association.
+This implies that most of its errors are missed players rather than false detections, meaning a good association cannot recover it.
+The comparable DetA and AssA scores confirm this.
+Across cameras, detection recall and HOTA rank in the same order, which confirms that detection drives the tracking quality.
 
 The video results highlight one recurring failure mode within the tracking pipeline.
 First, the basketball poses a significantly greater tracking challenge than the players, serving as the primary bottleneck for the detection and tracking performance.
 This effect is sometimes exacerbated by background clutter (e.g., stray basketballs), which can produce spurious trajectories.
 
-Projecting the reconstructed 3D tracks back to 2D gives the trajectory errors reported in Table~\ref{tab:results}.
-These errors are large, and the main cause is calibration bias: an error in the camera poses propagates through triangulation into a nearly constant positional offset.
+\subsection{3D Geometry and Trajectories}
+
+\textbf{3D geometry} accuracy is evaluated using two primary metrics, reprojecting the 3D points back onto the image planes.
+The \textbf{reprojection error} measures geometric consistency, which reflects the quality of calibration and triangulation (Table~\ref{tab:results-detail}).
+The \textbf{trajectory error} quantifies tracking accuracy by comparing these 3D trajectories against ground-truth 2D data across all shared frames.
+We report the Average Displacement Error (ADE), the Final Displacement Error (FDE), and the Median Trajectory Error (MTE) in Table~\ref{tab:results}.
+
+These trajectory errors are large, and the main cause is calibration bias: an error in the camera poses propagates through triangulation into a nearly constant positional offset.
 The similar ADE, FDE, and MTE values within each camera indicate a constant offset rather than growing drift, which is consistent with this bias.
 The fragment count (Frag.), the number of gaps in a predicted track, stays low.
 This shows that the trajectories remain mostly continuous, mainly thanks to the three-camera triangulation, whose redundancy recovers a position when one view misses a detection.
-
-In the video, the reconstructed 3D trajectories look overall good enough and follow the players consistently.
-The large error values mainly reflect the pixel scale of the high-resolution frames, so a displacement that is large in pixels is still small relative to the image size.
-As in 2D, the ball is likely the main contributor to the residual 3D error.
 
 The tracking scores and the trajectory errors do not always move together.
 This confirms that calibration, not tracking, is the main limiting factor, in agreement with the reprojection errors in Table~\ref{tab:results-detail}.
 There, the RMSE far exceeds the median, so a few outlier frames, rather than the calibration as a whole, account for the largest errors.
 
-\begin{table}[t]
+In the video, the reconstructed 3D trajectories look overall good enough and follow the players consistently.
+The large error values mainly reflect the pixel scale of the high-resolution frames, so a displacement that is large in pixels is still small relative to the image size.
+As in 2D, the ball is likely the main contributor to the residual 3D error.
+
+\begin{table}[htbp]
 \centering
 \caption{Tracking and trajectory results.}
 \label{tab:results}
@@ -60,7 +72,7 @@ cam\_4  & 1838.2 & 1689.1 & 1900.0 & 5 \\
 \end{minipage}
 \end{table}
 
-\begin{table}[t]
+\begin{table}[htbp]
 \centering
 \caption{Detection and calibration reprojection-error results.}
 \label{tab:results-detail}
