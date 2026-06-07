@@ -1,0 +1,105 @@
+\section{Evaluation and Results}\label{sec:evaluation_results}
+
+This section summarises the final tracking and trajectory results.
+The complete detection, tracking, and geometry tables, together with per-stage qualitative outputs and all pipeline parameters, are provided in the appendix (Appendices~\ref{app:parameters}--\ref{app:figures}).
+Full video results are available in the accompanying repository.
+
+\subsection{Detection and Tracking}
+
+\textbf{Detection} is measured using precision, recall, and the $F_1$ score, with true positives defined at an Intersection over Union (IoU) threshold of 0.5 (Table~\ref{tab:results-detail}).
+\textbf{Tracking} is assessed using IDF1 and HOTA \cite{hota}.
+IDF1 captures identity consistency, while our primary metric, HOTA, is the geometric mean of detection accuracy (DetA) and association accuracy (AssA), averaged over a range of localization thresholds.
+We favour HOTA over traditional metrics such as MOTA, which are biased toward detection errors and do not adequately reflect tracking continuity.
+
+As shown in Table~\ref{tab:results}, the tracker keeps identities reasonably well; however, its main limitation is detection recall rather than association.
+This implies that most of its errors are missed players rather than false detections, meaning a good association cannot recover it.
+The comparable DetA and AssA scores confirm this.
+Across cameras, detection recall and HOTA rank in the same order, which confirms that detection drives the tracking quality.
+
+The video results highlight one recurring failure mode within the tracking pipeline.
+First, the basketball poses a significantly greater tracking challenge than the players, serving as the primary bottleneck for the detection and tracking performance.
+This effect is sometimes exacerbated by background clutter (e.g., stray basketballs), which can produce spurious trajectories.
+
+\subsection{3D Geometry and Trajectories}
+
+\textbf{3D geometry} accuracy is evaluated using two primary metrics, reprojecting the 3D points back onto the image planes.
+The \textbf{reprojection error} measures geometric consistency, which reflects the quality of calibration and triangulation (Table~\ref{tab:results-detail}).
+The \textbf{trajectory error} quantifies tracking accuracy by comparing these 3D trajectories against ground-truth 2D data across all shared frames.
+We report the Average Displacement Error (ADE), the Final Displacement Error (FDE), and the Median Trajectory Error (MTE) in Table~\ref{tab:results}.
+
+These trajectory errors are large, and the main cause is calibration bias: an error in the camera poses propagates through triangulation into a nearly constant positional offset.
+The similar ADE, FDE, and MTE values within each camera indicate a constant offset rather than growing drift, which is consistent with this bias.
+The fragment count (Frag.), the number of gaps in a predicted track, stays low.
+This shows that the trajectories remain mostly continuous, mainly thanks to the three-camera triangulation, whose redundancy recovers a position when one view misses a detection.
+
+The tracking scores and the trajectory errors do not always move together.
+This confirms that calibration, not tracking, is the main limiting factor, in agreement with the reprojection errors in Table~\ref{tab:results-detail}.
+There, the RMSE far exceeds the median, so a few outlier frames, rather than the calibration as a whole, account for the largest errors.
+
+In the video, the reconstructed 3D trajectories look overall good enough and follow the players consistently.
+The large error values mainly reflect the pixel scale of the high-resolution frames, so a displacement that is large in pixels is still small relative to the image size.
+As in 2D, the ball is likely the main contributor to the residual 3D error.
+
+\begin{table}[htbp]
+\centering
+\caption{Tracking and trajectory results.}
+\label{tab:results}
+\small
+\begin{minipage}[t]{0.49\textwidth}
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Camera & IDF1 & HOTA & DetA & AssA \\
+\midrule
+cam\_13 & 0.569 & 0.434 & 0.469 & 0.405 \\
+cam\_2  & 0.610 & 0.480 & 0.453 & 0.511 \\
+cam\_4  & 0.638 & 0.521 & 0.553 & 0.495 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.49\textwidth}
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Camera & ADE & FDE & MTE & Frag. \\
+\midrule
+cam\_13 &  976.8 &  849.8 & 1047.5 & 2 \\
+cam\_2  & 1066.0 & 1279.1 & 1181.4 & 5 \\
+cam\_4  & 1838.2 & 1689.1 & 1900.0 & 5 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Detection and calibration reprojection-error results.}
+\label{tab:results-detail}
+\small
+\begin{minipage}[t]{0.49\textwidth}
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Camera & Prec. & Rec. & $F_1$ & IoU \\
+\midrule
+cam\_13 & 0.872 & 0.732 & 0.796 & 0.758 \\
+cam\_2  & 0.835 & 0.761 & 0.796 & 0.757 \\
+cam\_4  & 0.923 & 0.822 & 0.870 & 0.796 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.49\textwidth}
+\centering
+\begin{tabular}{lrrr}
+\toprule
+Camera & Mean & Median & RMSE \\
+\midrule
+cam\_13 &  51.3 & 28.9 &  87.7 \\
+cam\_2  & 140.0 & 94.5 & 278.7 \\
+cam\_4  & 135.0 & 50.0 & 296.2 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{table}

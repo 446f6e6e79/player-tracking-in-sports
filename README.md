@@ -1,5 +1,27 @@
 # Player Tracking in Sports - Multi-View Tracking and 3D Reconstruction
 
+## Results
+
+### 2D Tracking
+
+*Input (left) · Tracked output (right) · Camera 13*
+
+<div align="center">
+    <img src="docs/media/comparison.jpg" alt="Input vs tracked output comparison" width="100%">
+</div>
+
+### 3D Reconstruction
+
+*Triangulated player positions across all three camera views*
+
+<div align="center">
+
+https://github.com/user-attachments/assets/d35f3c35-7488-4aa2-8599-425408802872
+
+</div>
+
+---
+
 <div align="center">
     <strong>
         <a href="docs/report.pdf">View Full Report (PDF)</a>
@@ -32,7 +54,8 @@ The 3D reconstruction pipeline triangulates the merged 2D detections across view
 - **Python 3.11+** (matches `requirements.txt`: `numpy==2.4.3`, `torch==2.11.0`).
 - **ffmpeg** on `PATH` for OpenCV video writing. Can be installed via `brew install ffmpeg` on macOS or downloaded from the [official site](https://ffmpeg.org/download.html) for Windows/Linux.
 - **Match videos** in `data/videos/` as `out2.mp4`, `out4.mp4`, `out13.mp4` (cameras `cam_2`, `cam_4`, `cam_13`).
-- **Fine-tuned weights** at `models/fine_tuned_models/best.pt` (default used by the pipeline script). Auto-downloaded from the [🤗 Hugging Face repo](https://huggingface.co/446f6e6e79/YOLO-basketball-fineTuned) on first run; you can also produce your own with the fine-tune flow below. 
+- **Fine-tuned YOLO weights** at `models/fine_tuned_models/best.pt`. Auto-downloaded from the [🤗 Hugging Face repo](https://huggingface.co/446f6e6e79/YOLO-basketball-fineTuned) on first run; you can also produce your own with the fine-tune flow below.
+- **OSNet appearance weights** at `models/osnet_x1_0_msmt17.pt`. Required by DeepSORT for re-ID features. Download `osnet_x1_0_msmt17.pt` from the [deep-person-reid model zoo](https://kaiyangzhou.github.io/deep-person-reid/MODEL_ZOO) and place it in `models/`.
 - **Roboflow API key** (only needed if you run the evaluation cell in `notebooks/main.ipynb`). Copy `.env.example` to `.env` and fill in `ANNOTATIONS_API_KEY`.
 
 ## Setup Environment
@@ -69,6 +92,9 @@ Useful flags:
 - `--max-frames N` — stop after N frames (smoke testing).
 - `--save-detection-video` / `--save-tracking-video` — also write the intermediate videos.
 - `--model <path>` — override the default fine-tuned weights.
+- `--yolo-batch N` — YOLO inference batch size (default: from `config.yaml`).
+- `--chunk-size N` — frames per processing chunk (default: from `config.yaml`); smaller values reduce peak RAM.
+- `--force` — overwrite existing output files.
 
 ### End-to-end 3D reconstruction pipeline — `scripts/run_3D_reconstruction_pipeline.py`
 
@@ -76,6 +102,13 @@ Useful flags:
 python scripts/run_3D_reconstruction_pipeline.py --cameras cam_13 cam_4 cam_2
 ```
 See the docstring at the top of the script for the full step list.
+
+Optional flags:
+- `--render-minimap` — write a stand-alone top-down minimap MP4.
+- `--overlay-video` — write a radar-overlay MP4 on top of camera A's source video.
+- `--render-3d-graph` — write a 3D matplotlib animation MP4 of the triangulated scene.
+- `--max-frames N` — limit frames rendered for `--overlay-video`.
+- `--force` — overwrite existing output files.
 
 ### Run the pipelines on Colab — `notebooks/pipeline_colab.ipynb`
 
@@ -98,13 +131,15 @@ Defaults: `imgsz=1280`, `batch=4`, 300 epochs, `patience=30`. Copy the best chec
 ## Repository Structure
 
 ```
-computer-vision-project/
+player-tracking-in-sports/
+├── config.yaml                   # All tunable pipeline defaults (loaded via src/config)
 ├── src/                          # Library code
 │   ├── calibration/              # Camera params and extrinsics
 │   ├── cli/                      # Shared argparse helpers for pipeline scripts
+│   ├── config/                   # Pydantic schema + YAML loader for config.yaml
 │   ├── detection/                # MOG2, YOLO, NMS
-│   ├── tracking/                 # DeepSORT, label resolution
-│   ├── geometry/                 # Calibration / 3D helpers
+│   ├── tracking/                 # DeepSORT, label resolution, trajectory smoothing
+│   ├── geometry/                 # Rectification, triangulation, Kalman smoothing
 │   ├── evaluation/               # Metrics against Roboflow annotations
 │   ├── paths/                    # Camera/reconstruction path resolution and preflight
 │   ├── visualization/            # Rendering helpers
@@ -119,15 +154,16 @@ computer-vision-project/
 │   ├── main.ipynb                # Exploratory walkthrough
 │   ├── finetune.ipynb            # Colab orchestrator for scripts/finetune.py
 │   └── pipeline_colab.ipynb      # Colab orchestrator for the 2D + 3D pipelines
-├── models/                       # YOLO weights (git-ignored)
-│   └── fine_tuned_models/         # Fine-tuned checkpoints (best.pt)
 ├── data/                         # Videos, calibration, annotations (git-ignored)
-├── results/                      # Generated detection/tracking videos (git-ignored)
-├── docs/                          # Report and LaTeX sources
-│   ├── report.pdf                 # Full methodology
-│   ├── LaTeX/                     # Report sources
-│   ├── build/                     # LaTeX build outputs
-│   └── media/                     # Figures and preview assets
+│   ├── camera_data/              # Per-camera intrinsics and extrinsics JSON
+│   └── videos/                   # Source match videos (out2.mp4, out4.mp4, out13.mp4)
+├── models/                       # YOLO and OSNet weights (git-ignored)
+│   └── fine_tuned_models/        # Fine-tuned checkpoints (best.pt)
+├── results/                      # Generated detection/tracking/3D outputs (git-ignored)
+├── docs/                         # Report and LaTeX sources
+│   ├── report.pdf                # Full methodology
+│   ├── LaTeX/                    # Report sources
+│   └── media/                    # Figures and preview assets
 ├── requirements.txt
 └── README.md
 ```
