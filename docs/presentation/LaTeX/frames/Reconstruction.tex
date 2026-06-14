@@ -1,0 +1,28 @@
+\section{3D Reconstruction}
+\label{sec:reconstruction}
+% ----- Triangulation (video) -----------------------------------
+\begin{frame}{3D Reconstruction: Triangulation}
+\begin{columns}[T]
+  \begin{column}{0.55\textwidth}
+    \begin{itemize}
+      \item \textbf{Calibration:} known intrinsics; extrinsics and distortion via PnP on court landmarks.
+      \item \textbf{Players:} back-project the foot pixel onto the floor plane (works from a single view).
+      \item \textbf{Ball:} DLT/SVD triangulation from $\geq 2$ views, dropping high-error views.
+    \end{itemize}
+  \end{column}
+  \begin{column}{0.42\textwidth}
+    \videobox
+  \end{column}
+\end{columns}
+\end{frame}
+
+% ----- Trajectory smoothing ------------------------------------
+\begin{frame}{3D Reconstruction: Trajectory Smoothing}
+Remove residual noise from detection jitter and calibration error.
+\begin{itemize}
+  \item Forward Kalman filter, then a Rauch--Tung--Striebel backward pass.
+  \item Past and future observations correct each state.
+  \item Reject implausible spatial jumps as outliers.
+  \item Split trajectories across long gaps to avoid false extrapolation.
+\end{itemize}
+\end{frame}

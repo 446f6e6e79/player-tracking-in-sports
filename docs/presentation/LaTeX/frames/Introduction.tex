@@ -1,0 +1,13 @@
+\section{Introduction}
+\label{sec:introduction}
+% ----- Overview ------------------------------------------------
+\begin{frame}{Introduction}
+An end-to-end multi-view pipeline for player and ball tracking in basketball.
+\begin{itemize}
+  \item \textbf{Goal:} track players and the ball, then reconstruct their 3D trajectories.
+  \item \textbf{Challenges:} fast motion, mutual occlusions, specular floor reflections.
+  \item \textbf{Setup:} three synchronised, calibrated cameras (cam\_2, cam\_4, cam\_13).
+\end{itemize}
+\vspace{0.3em}
+\textbf{Pipeline:} detection $\rightarrow$ 2D tracking $\rightarrow$ multi-view 3D reconstruction.
+\end{frame}

@@ -1,0 +1,47 @@
+\documentclass[10pt]{beamer}
+
+% Input setup file with packages and custom commands
+\input{setup.tex}
+
+\begin{document}
+
+\title[Player Tracking in Sports]{Computer Vision:\\ \normalsize\textit{Player Tracking in Sports - Multi-View Tracking and 3D Reconstruction}
+}
+\author[University of Trento]{%
+  Davide Donà\ \ --\ \ \small\texttt{davide.dona-1@studenti.unitn.it}\\
+  \small 264467\\
+  \and
+  Andrea Blushi\ \ --\ \ \small\texttt{andrea.blushi@studenti.unitn.it}\\
+  \small 264468
+}
+
+
+\institute[]{ University of Trento}
+\date[]{\MonthName\ \number\year}
+
+%The next statement creates the title page.
+\frame{\titlepage}
+\begin{frame}
+\frametitle{Contents}
+\tableofcontents
+\end{frame}
+%------------------------------------------------------------
+\input{frames/Introduction.tex}
+\input{frames/Detection.tex}
+\input{frames/Tracking.tex}
+\input{frames/Reconstruction.tex}
+\input{frames/Evaluation.tex}
+\input{frames/Findings.tex}
+
+
+\section*{References}
+\begin{frame}[allowframebreaks]{References}
+\footnotesize
+\bibliographystyle{splncs04}
+\bibliography{references}
+\end{frame}
+
+%------------------------------------------------------------
+\appendix
+\input{frames/Appendix.tex}
+\end{document}

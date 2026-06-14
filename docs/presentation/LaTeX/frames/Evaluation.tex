@@ -1,0 +1,11 @@
+\section{Evaluation}
+\label{sec:evaluation}
+% ----- Metrics -------------------------------------------------
+\begin{frame}{Evaluation Metrics}
+\begin{itemize}
+  \item \textbf{Detection:} precision, recall, $F_1$ (true positive at IoU $> 0.5$).
+  \item \textbf{Tracking:} IDF1 for identity; \textbf{HOTA} \cite{hota} $=\sqrt{\text{DetA}\cdot\text{AssA}}$ as the primary metric.
+  \item \textbf{3D geometry:} reprojection error, reflecting calibration and triangulation quality.
+  \item \textbf{Trajectory:} ADE, FDE, MTE against ground-truth 2D data.
+\end{itemize}
+\end{frame}
