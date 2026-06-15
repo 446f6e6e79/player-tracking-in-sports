@@ -24,17 +24,18 @@
 F_1 = \frac{2\,\text{Prec}\cdot\text{Rec}}{\text{Prec}+\text{Rec}}, \quad
 \text{IoU} = \frac{|A \cap B|}{|A \cup B|}
 \]
-\textbf{Tracking}
+\textbf{Tracking} \;{\footnotesize(TP, FP, FN from matching at localization threshold $\alpha$; HOTA integrates over $\alpha$)}
 \[
 \text{IDF1} = \frac{2\,IDTP}{2\,IDTP + IDFP + IDFN}, \qquad
-\text{HOTA} = \sqrt{\text{DetA}\cdot\text{AssA}}
+\text{HOTA} = \int_0^1 \sqrt{\text{DetA}_\alpha\cdot\text{AssA}_\alpha}\;\,d\alpha
 \]
 \[
-\text{DetA} = \frac{TP}{TP+FN+FP}, \qquad
-\text{AssA} = \frac{1}{TP}\sum_{c}\frac{TPA(c)}{TPA(c)+FNA(c)+FPA(c)}
+\text{DetA}_\alpha = \frac{|TP|}{|TP|+|FN|+|FP|}, \qquad
+\text{AssA}_\alpha = \frac{1}{|TP|}\sum_{c\,\in\,TP} A(c)
 \]
 \[
-\text{LocA} = \frac{1}{|TP|}\sum_{c\,\in\,TP}\text{IoU}(c) \quad\text{(mean overlap of matched boxes)}
+A(c) = \frac{|TPA(c)|}{|TPA(c)|+|FNA(c)|+|FPA(c)|}, \qquad
+\text{LocA} = \frac{1}{|TP|}\sum_{c\,\in\,TP}\text{IoU}(c)
 \]
 \end{frame}
 

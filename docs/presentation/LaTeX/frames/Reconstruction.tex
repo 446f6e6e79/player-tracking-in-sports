@@ -1,13 +1,30 @@
 \section{3D Reconstruction}
 \label{sec:reconstruction}
+% ----- Camera calibration --------------------------------------
+\begin{frame}{3D Reconstruction: Camera Calibration}
+\begin{itemize}
+  \item \textbf{Intrinsics:} known a priori for each camera.
+  \item \textbf{Extrinsics:} estimated by solving Perspective-n-Point (PnP).
+  \item PnP maps manually annotated court landmarks to their 3D world coordinates.
+\end{itemize}
+\end{frame}
+
 % ----- Triangulation (video) -----------------------------------
 \begin{frame}{3D Reconstruction: Triangulation}
 \begin{columns}[T]
   \begin{column}{0.55\textwidth}
+    Players and the ball are treated differently:
     \begin{itemize}
-      \item \textbf{Calibration:} known intrinsics; extrinsics and distortion via PnP on court landmarks.
-      \item \textbf{Players:} back-project the foot pixel onto the floor plane (works from a single view).
-      \item \textbf{Ball:} DLT/SVD triangulation from $\geq 2$ views, dropping high-error views.
+      \item \textbf{Players:} back-project the foot pixel onto the floor plane.
+      \begin{itemize}
+        \item Floor constraint allows single-view localisation under occlusion.
+        \item Multi-view estimates averaged after discarding outliers.
+      \end{itemize}
+      \item \textbf{Ball:} airborne, so triangulated from at least $2$ views.
+      \begin{itemize}
+        \item DLT stacks the per-camera ray constraints; SVD solves the system.
+        \item High-error views discarded and the point re-triangulated.
+      \end{itemize}
     \end{itemize}
   \end{column}
   \begin{column}{0.42\textwidth}
@@ -23,6 +40,6 @@ Remove residual noise from detection jitter and calibration error.
   \item Forward Kalman filter, then a Rauch--Tung--Striebel backward pass.
   \item Past and future observations correct each state.
   \item Reject implausible spatial jumps as outliers.
-  \item Split trajectories across long gaps to avoid false extrapolation.
+  \item Split a trajectory at long gaps, rather than interpolate across frames with no detections.
 \end{itemize}
 \end{frame}

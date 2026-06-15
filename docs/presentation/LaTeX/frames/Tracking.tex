@@ -3,10 +3,11 @@
 % ----- Prior work ----------------------------------------------
 \begin{frame}{Tracking: Prior Work and Limitations}
 \begin{itemize}
-  \item \textbf{SORT} \cite{sort} (tracking by detection): Kalman filter with a constant-velocity motion model, Hungarian assignment on IoU overlap.
+  \item \textbf{SORT} \cite{sort} (tracking by detection): 
   \begin{itemize}
-    \item Relies on spatial overlap, with no appearance cue.
-    \item Frequent identity switches when players cross paths.
+    \item Kalman filter with a constant-velocity motion model specific to the sport.
+    \item Hungarian assignment on IoU overlap to match detections to tracks.
+    \item No appearance cue: frequent identity switches when players cross paths.
   \end{itemize}
 \end{itemize}
 \end{frame}
@@ -15,10 +16,9 @@
 \begin{frame}{Final Tracking: DeepSORT}
 \begin{columns}[T]
   \begin{column}{0.55\textwidth}
-    DeepSORT \cite{deepsort} adds appearance to the motion model.
+    \textbf{DeepSORT} \cite{deepsort} adds appearance to the motion model.
     \begin{itemize}
       \item Kalman motion plus an OSNet \cite{reid} appearance embedding.
-      \item Per-track rolling gallery of embeddings.
       \item Matching cascade: appearance first, then overlap.
       \item Fewer identity switches in close interactions.
     \end{itemize}
@@ -36,6 +36,6 @@
   \item \textbf{Low-confidence recovery (ByteTrack)} \cite{bytetrack}\textbf{:} second-pass IoU match to weak detections through occlusion.
   \item \textbf{Track resurrection:} keep galleries of lost tracks and restore identity on re-entry.
   \item \textbf{Coasting:} emit the Kalman prediction to bridge short gaps.
-  \item \textbf{Label resolution:} confidence-weighted majority label per track, conflicts to the higher confidence.
+  \item \textbf{Label resolution:} confidence-weighted majority label per track.
 \end{itemize}
 \end{frame}

@@ -3,13 +3,13 @@
 % ----- Prior work ----------------------------------------------
 \begin{frame}{Detection: Prior Work and Limitations}
 \begin{itemize}
-  \item \textbf{MOG2 background subtraction} \cite{survey} (with CLAHE \cite{clahe} and morphological operations):
+  \item \textbf{MOG2 background subtraction} \cite{survey} (with CLAHE \cite{clahe}):
   \begin{itemize}
-    \item Floor specularities and shadows evade shadow detection.
-    \item Stationary players absorbed into the background.
+    \item Floor specularities and shadows may evade shadow detection.
+    \item Stationary referees absorbed into the background.
     \item Moving spectators produce false positives.
   \end{itemize}
-  \item \textbf{Pre-trained YOLOv11} \cite{yolo_paper} (COCO):
+  \item \textbf{Pre-trained YOLOv11} \cite{yolo_paper}:
   \begin{itemize}
     \item Ball absent from the COCO taxonomy and undetectable.
     \item Players and referees both labelled ``person'': no initial identity.
@@ -22,9 +22,9 @@
 \begin{columns}[T]
   \begin{column}{0.55\textwidth}
     \begin{itemize}
-      \item YOLO26 backbone fine-tuned on the domain dataset.
-      \item Each player is its own class; the ball is its own class.
+      \item YOLO26 fine-tuned on the domain dataset.
       \item Per-frame identity comes straight from detection.
+      \item Ball detection is still inconsistent.
     \end{itemize}
   \end{column}
   \begin{column}{0.42\textwidth}
@@ -39,7 +39,7 @@
   \item \textbf{Dual-pass inference} (the ball occupies few pixels):
   \begin{itemize}
     \item Primary pass tuned for players.
-    \item High-resolution permissive pass for ball recall.
+    \item High-resolution pass for ball recall.
     \item Both outputs merged into one set of detections.
   \end{itemize}
   \item \textbf{Class-agnostic NMS} \cite{nms} (conflicting identities create duplicates):

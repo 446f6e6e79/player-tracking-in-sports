@@ -4,8 +4,86 @@
 \begin{frame}{Evaluation Metrics}
 \begin{itemize}
   \item \textbf{Detection:} precision, recall, $F_1$ (true positive at IoU $> 0.5$).
-  \item \textbf{Tracking:} IDF1 for identity; \textbf{HOTA} \cite{hota} $=\sqrt{\text{DetA}\cdot\text{AssA}}$ as the primary metric.
-  \item \textbf{3D geometry:} reprojection error, reflecting calibration and triangulation quality.
-  \item \textbf{Trajectory:} ADE, FDE, MTE against ground-truth 2D data.
+  \item \textbf{Tracking:} IDF1 for identity; \textbf{HOTA} \cite{hota} as the primary metric.
+  \item \textbf{3D geometry:} reprojection error, reflecting calibration and triangulation.
+  \item \textbf{Trajectory:} ADE, FDE, MTE of reprojection against ground-truth 2D data.
 \end{itemize}
+\end{frame}
+
+% ----- Detection and tracking findings -------------------------
+\begin{frame}{Findings: Detection and Tracking}
+\begin{columns}[T]
+  \begin{column}{0.52\textwidth}
+    \begin{itemize}
+      \item DetA $\approx$ AssA: errors are missed players, not bad matches.
+      \item Detection drives tracking quality.
+      \item The ball is the main bottleneck from qualitative review.
+    \end{itemize}
+  \end{column}
+  \begin{column}{0.46\textwidth}
+    \centering
+    \scriptsize
+    \begin{tabular}{lrrrr}
+      \toprule
+      Cam & Prec. & Rec. & $F_1$ & IoU \\
+      \midrule
+      cam\_13 & 0.872 & 0.732 & 0.796 & 0.758 \\
+      cam\_2  & 0.835 & 0.761 & 0.796 & 0.757 \\
+      cam\_4  & 0.923 & 0.822 & 0.870 & 0.796 \\
+      \bottomrule
+    \end{tabular}
+
+    \vspace{2em}
+
+    \begin{tabular}{lrrrr}
+      \toprule
+      Cam & IDF1 & HOTA & DetA & AssA \\
+      \midrule
+      cam\_13 & 0.569 & 0.434 & 0.469 & 0.405 \\
+      cam\_2  & 0.610 & 0.480 & 0.453 & 0.511 \\
+      cam\_4  & 0.638 & 0.521 & 0.553 & 0.495 \\
+      \bottomrule
+    \end{tabular}
+  \end{column}
+\end{columns}
+\end{frame}
+
+% ----- 3D and trajectory findings ------------------------------
+\begin{frame}{Findings: 3D and Trajectories}
+\begin{columns}[T]
+  \begin{column}{0.52\textwidth}
+    \begin{itemize}
+      \item Large trajectory errors driven by calibration bias.
+      \item cam\_13 has the lowest errors: a complete field overview.
+      \item Similar ADE/FDE/MTE: a constant offset, not growing drift.
+      \item Low fragment count: tracks stay continuous.
+      \item RMSE $\gg$ median: a few outlier frames dominate.
+    \end{itemize}
+  \end{column}
+  \begin{column}{0.46\textwidth}
+    \centering
+    \scriptsize
+    \begin{tabular}{lrrrr}
+      \toprule
+      Cam & ADE & FDE & MTE & Frag. \\
+      \midrule
+      cam\_13 &  976.8 &  849.8 & 1047.5 & 2 \\
+      cam\_2  & 1066.0 & 1279.1 & 1181.4 & 5 \\
+      cam\_4  & 1838.2 & 1689.1 & 1900.0 & 5 \\
+      \bottomrule
+    \end{tabular}
+
+    \vspace{2em}
+
+    \begin{tabular}{lrrr}
+      \toprule
+      Cam & Mean & Median & RMSE \\
+      \midrule
+      cam\_13 &  51.3 & 28.9 &  87.7 \\
+      cam\_2  & 140.0 & 94.5 & 278.7 \\
+      cam\_4  & 135.0 & 50.0 & 296.2 \\
+      \bottomrule
+    \end{tabular}
+  \end{column}
+\end{columns}
 \end{frame}
