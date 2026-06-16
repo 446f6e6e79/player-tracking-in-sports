@@ -67,14 +67,14 @@ def show_reprojection_table(results: dict[str, GeometryMetrics]) -> None:
     for camera, metrics in results.items():
         r = metrics.reprojection
         rows.append({
-            "Camera":      camera,
-            "Mean (px)":   round(r.mean_error_px,     2),
-            "Median (px)": round(r.median_error_px,   2),
-            "RMSE (px)":   round(r.rmse_px,           2),
-            "Std (px)":    round(r.std_error_px,       2),
-            "Acc @ 5px":   round(r.accuracy_at_5px,   3),
-            "Acc @ 10px":  round(r.accuracy_at_10px,  3),
-            "Acc @ 20px":  round(r.accuracy_at_20px,  3),
+            "Camera":       camera,
+            "Mean (mm)":    round(r.mean_error_mm,      2),
+            "Median (mm)":  round(r.median_error_mm,    2),
+            "RMSE (mm)":    round(r.rmse_mm,            2),
+            "Std (mm)":     round(r.std_error_mm,        2),
+            "Acc @ 25mm":   round(r.accuracy_at_25mm,   3),
+            "Acc @ 50mm":   round(r.accuracy_at_50mm,   3),
+            "Acc @ 100mm":  round(r.accuracy_at_100mm,  3),
         })
     display(pd.DataFrame(rows).set_index("Camera"))
 
@@ -90,9 +90,9 @@ def show_trajectory_table(results: dict[str, GeometryMetrics]) -> None:
         t = metrics.trajectory
         rows.append({
             "Camera":      camera,
-            "ADE (px)":    round(t.ade_px, 2),
-            "FDE (px)":    round(t.fde_px, 2),
-            "MTE (px)":    round(t.mte_px, 2),
+            "ADE (mm)":    round(t.ade_mm, 2),
+            "FDE (mm)":    round(t.fde_mm, 2),
+            "MTE (mm)":    round(t.mte_mm, 2),
             "Trajs":       t.total_trajectories,
             "Fragments":   t.trajectory_fragments,
         })

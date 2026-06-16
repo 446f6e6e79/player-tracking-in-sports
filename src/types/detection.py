@@ -71,7 +71,7 @@ class FrameDetections:
 @dataclass
 class DetectionOutput:
     """Full pre-tracking detector output for a video."""
-    source: str                   # e.g. "yolo_v11m_pt"
+    source: str                   # e.g. "yolo26m_pt"
     camera_id: str                # e.g. "cam_1"
     fps: float                    # Frames per second of the original video
     frames: list[FrameDetections] = field(default_factory=list)

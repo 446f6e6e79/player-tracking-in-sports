@@ -79,7 +79,7 @@ def yolo_to_detection_output(
         model: the YOLO model (used for class name lookup)
         camera_id: identifier for the camera (e.g. "cam_13")
         fps: video frame rate
-        source: label for the detector (e.g. "yolo_v11m_pt")
+        source: label for the detector (e.g. "yolo26m_pt")
         frame_index_offset: absolute frame index of the first element in
             `raw_results`. Lets chunked callers reconstruct global indices.
     Returns:

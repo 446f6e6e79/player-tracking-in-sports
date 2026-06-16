@@ -23,7 +23,7 @@ def load_fine_tuned_yolo_model(
     force_reload: bool = False,
 ) -> YOLO:
     """
-    Load the fine-tuned YOLOv11m basketball model from disk, downloading it from
+    Load the fine-tuned YOLO26m basketball model from disk, downloading it from
     Hugging Face if necessary. Subsequent calls with the same resolved path
     return the cached instance.
     Parameters:

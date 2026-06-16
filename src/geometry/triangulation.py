@@ -248,3 +248,16 @@ def project_points(world_points: np.ndarray, cam: CameraData) -> np.ndarray:
         np.zeros_like(cam.dist),
     )
     return image_points.reshape(-1, 2)
+
+
+def camera_frame_depths(world_points: np.ndarray, cam: CameraData) -> np.ndarray:
+    """
+    Return the camera-frame depth Z (millimeters) of each (N, 3) world point.
+
+    Used to convert an image-plane pixel error into a physical distance at the
+    object's depth: a 1 px offset spans ≈ Z / f millimeters on the fronto-parallel
+    plane at depth Z, where f is the focal length in pixels.
+    """
+    R, _ = cv2.Rodrigues(np.asarray(cam.rvec, dtype=np.float64))
+    cam_pts = R @ np.asarray(world_points, dtype=np.float64).T + np.asarray(cam.tvec, dtype=np.float64).reshape(3, 1)
+    return cam_pts[2, :]
