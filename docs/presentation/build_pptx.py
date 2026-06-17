@@ -22,15 +22,15 @@ from pptx import Presentation
 from pptx.util import Inches
 
 PRESENTATION_DIR = Path(__file__).resolve().parent
-DEFAULT_TEX_DIR = PRESENTATION_DIR / "LaTeX"
-DEFAULT_PDF = DEFAULT_TEX_DIR / "presentation.pdf"
+DEFAULT_TEX_DIR = PRESENTATION_DIR
+DEFAULT_PDF = DEFAULT_TEX_DIR / "build" / "presentation.pdf"
 DEFAULT_OUTPUT = PRESENTATION_DIR / "presentation_slides.pptx"
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Build an image-only PPTX from the Beamer PDF.")
     p.add_argument("--pdf", type=Path, default=DEFAULT_PDF,
-                   help="Source PDF (default: LaTeX/presentation.pdf).")
+                   help="Source PDF (default: build/presentation.pdf).")
     p.add_argument("--output", type=Path, default=DEFAULT_OUTPUT,
                    help="Destination PPTX (default: presentation_slides.pptx).")
     p.add_argument("--dpi", type=int, default=300,
