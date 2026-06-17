@@ -2,7 +2,7 @@
 
 The detection approaches previously employed range from classical computer-vision methods to domain-adapted deep learning.
 As a baseline, we use a Mixture of Gaussians (MOG2) background-subtraction method \cite{survey} with CLAHE preprocessing \cite{clahe}; however, it remains highly vulnerable to court-floor specularities, stationary players, and dynamic spectator backgrounds.
-Adopting an object-detection paradigm with a COCO-pretrained YOLOv11 model \cite{yolo_paper} substantially reduces these spatial errors by leveraging semantic features.
+Adopting an object-detection paradigm with a COCO-pretrained YOLO26 model \cite{yolo_paper} substantially reduces these spatial errors by leveraging semantic features.
 Nonetheless, important domain gaps remain: the basketball is absent from the pre-trained taxonomy, and players and referees are both labeled as ``person'', preventing identity distinction.
 
 % This section describes the three detection approaches evaluated in this work, progressing from a classical background subtraction baseline to a fine-tuned deep learning model with multi-pass inference.
@@ -16,8 +16,8 @@ Nonetheless, important domain gaps remain: the basketball is absent from the pre
 % First, floor specularities create intense reflections and shadows that evade MOG2's color-based shadow detection.
 % Then, temporarily stationary players are erroneously integrated into the background model, and dynamic backgrounds, such as moving spectators, introduce persistent false positives.
 
-% \subsection{Pre-Trained YOLOv11}
-% To overcome MOG2 limitations, we deploy a YOLOv11 architecture \cite{yolo_paper} pre-trained on the COCO dataset.
+% \subsection{Pre-Trained YOLO26}
+% To overcome MOG2 limitations, we deploy a YOLO26 architecture \cite{yolo_paper} pre-trained on the COCO dataset.
 % Transitioning to this object detection paradigm substantially improves accuracy and mitigates the limitations of the background subtraction baseline.
 
 % However, two distinct domain gaps persist: the sports ball is entirely absent from the pre-trained taxonomy, and players and referees are uniformly classified as ``person'', precluding downstream identity distinction.

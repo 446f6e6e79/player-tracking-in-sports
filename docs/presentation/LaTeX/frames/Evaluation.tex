@@ -5,8 +5,8 @@
 \begin{itemize}
   \item \textbf{Detection:} precision, recall, $F_1$ (true positive at IoU $> 0.5$).
   \item \textbf{Tracking:} IDF1 for identity; \textbf{HOTA} \cite{hota} as the primary metric.
-  \item \textbf{3D geometry:} reprojection error, reflecting calibration and triangulation.
-  \item \textbf{Trajectory:} ADE, FDE, MTE of reprojection against ground-truth 2D data.
+  \item \textbf{3D geometry:} reprojection error (mm), reflecting calibration and triangulation.
+  \item \textbf{Trajectory:} ADE, FDE, MTE (mm) of reprojection against ground-truth 2D data.
 \end{itemize}
 \end{frame}
 
@@ -53,11 +53,10 @@
 \begin{columns}[T]
   \begin{column}{0.52\textwidth}
     \begin{itemize}
-      \item Large trajectory errors driven by calibration bias.
-      \item cam\_13 has the lowest errors: a complete field overview.
+      \item Metre-scale trajectory errors from calibration bias.
+      \item Largest for cam\_13: wide overview, players farthest, more mm per pixel.
       \item Similar ADE/FDE/MTE: a constant offset, not growing drift.
-      \item Low fragment count: tracks stay continuous.
-      \item RMSE $\gg$ median: a few outlier frames dominate.
+      \item Low fragments; RMSE $\gg$ median: a few outlier frames dominate.
     \end{itemize}
   \end{column}
   \begin{column}{0.46\textwidth}
@@ -67,9 +66,9 @@
       \toprule
       Cam & ADE & FDE & MTE & Frag. \\
       \midrule
-      cam\_13 &  976.8 &  849.8 & 1047.5 & 2 \\
-      cam\_2  & 1066.0 & 1279.1 & 1181.4 & 5 \\
-      cam\_4  & 1838.2 & 1689.1 & 1900.0 & 5 \\
+      cam\_13 &  9976.1 &  8503.9 & 10662.2 & 2 \\
+      cam\_2  &  3984.4 &  5098.8 &  4373.3 & 5 \\
+      cam\_4  &  8636.7 &  7238.4 &  8739.9 & 5 \\
       \bottomrule
     \end{tabular}
 
@@ -79,9 +78,9 @@
       \toprule
       Cam & Mean & Median & RMSE \\
       \midrule
-      cam\_13 &  51.3 & 28.9 &  87.7 \\
-      cam\_2  & 140.0 & 94.5 & 278.7 \\
-      cam\_4  & 135.0 & 50.0 & 296.2 \\
+      cam\_13 & 499.6 & 300.5 &  844.9 \\
+      cam\_2  & 772.5 & 459.6 & 1378.8 \\
+      cam\_4  & 395.3 & 176.0 &  905.4 \\
       \bottomrule
     \end{tabular}
   \end{column}

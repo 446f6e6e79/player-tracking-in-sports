@@ -141,9 +141,9 @@ Method & Camera & Precision & Recall & $F_1$ & Mean IoU \\
   & cam\_4  & 0.328 & 0.293 & 0.309 & 0.700 \\
 \midrule
 \multirow{3}{*}{YOLO pre-trained}
-  & cam\_13 & 0.834 & 0.602 & 0.699 & 0.748 \\
-  & cam\_2  & 0.819 & 0.781 & 0.800 & 0.785 \\
-  & cam\_4  & 0.927 & 0.807 & 0.862 & 0.808 \\
+  & cam\_13 & 0.851 & 0.617 & 0.716 & 0.754 \\
+  & cam\_2  & 0.858 & 0.778 & 0.816 & 0.782 \\
+  & cam\_4  & 0.922 & 0.801 & 0.857 & 0.808 \\
 \midrule
 \multirow{3}{*}{YOLO fine-tuned}
   & cam\_13 & 0.872 & 0.732 & 0.796 & 0.758 \\
@@ -179,20 +179,20 @@ Tracker & Camera & IDP & IDR & IDF1 & HOTA & DetA & AssA & LocA \\
 \begin{table}[H]
 \centering
 \caption{3D geometry errors: reprojection of triangulated points and trajectory error of
-projected tracks. Mean, Median, RMSE, ADE, FDE, and MTE are in px; Acc columns are
-fractions. Fragment counts are 2, 5, 5 for cam\_13, cam\_2, cam\_4.}
+projected tracks. Mean, Median, RMSE, ADE, FDE, and MTE are in mm; Acc columns are
+fractions at 25, 50, 100\,mm. Fragment counts are 2, 5, 5 for cam\_13, cam\_2, cam\_4.}
 \label{tab:app-geometry-errors}
 \footnotesize
-\setlength{\tabcolsep}{3pt}
+\setlength{\tabcolsep}{2pt}
 \begin{tabular}{lrrrrrrrrr}
 \toprule
 & \multicolumn{6}{c}{Reprojection error} & \multicolumn{3}{c}{Trajectory error} \\
 \cmidrule(lr){2-7}\cmidrule(lr){8-10}
-Camera & Mean & Median & RMSE & Acc@5 & Acc@10 & Acc@20 & ADE & FDE & MTE \\
+Camera & Mean & Median & RMSE & Acc@25 & Acc@50 & Acc@100 & ADE & FDE & MTE \\
 \midrule
-cam\_13 &  51.3 & 28.9 &  87.7 & 0.135 & 0.221 & 0.349 &  976.8 &  849.8 & 1047.5 \\
-cam\_2  & 140.0 & 94.5 & 278.7 & 0.028 & 0.047 & 0.094 & 1066.0 & 1279.1 & 1181.4 \\
-cam\_4  & 135.0 & 50.0 & 296.2 & 0.168 & 0.214 & 0.295 & 1838.2 & 1689.1 & 1900.0 \\
+cam\_13 & 499.6 & 300.5 &  844.9 & 0.087 & 0.134 & 0.219 &  9976.1 &  8503.9 & 10662.2 \\
+cam\_2  & 772.5 & 459.6 & 1378.8 & 0.023 & 0.038 & 0.076 &  3984.4 &  5098.8 &  4373.3 \\
+cam\_4  & 395.3 & 176.0 &  905.4 & 0.188 & 0.247 & 0.359 &  8636.7 &  7238.4 &  8739.9 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -222,7 +222,7 @@ cam\_13.
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{../media/appendix/04_inspect_yolo_detections.png}
-  \caption{Pre-trained YOLOv11 detections.}
+  \caption{Pre-trained YOLO26 detections.}
 \end{figure}
 
 \begin{figure}[H]

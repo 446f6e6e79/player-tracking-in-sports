@@ -8,3 +8,4 @@ We favour HOTA over traditional metrics such as MOTA, which are biased toward de
 The \textbf{reprojection error} measures geometric consistency, which reflects the quality of calibration and triangulation.
 The \textbf{trajectory error} quantifies tracking accuracy by comparing these 3D trajectories against ground-truth 2D data across all shared frames.
 We report the Average Displacement Error (ADE), the Final Displacement Error (FDE), and the Median Trajectory Error (MTE).
+Both geometry errors are converted from pixels to millimetres by scaling each residual with the point depth and the focal length, so they measure physical distance and stay comparable across cameras.

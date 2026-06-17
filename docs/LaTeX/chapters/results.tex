@@ -36,8 +36,8 @@ The tracking scores and the trajectory errors do not always move together.
 This confirms that calibration, not tracking, is the main limiting factor, in agreement with the reprojection errors in Table~\ref{tab:results-detail}.
 There, the RMSE far exceeds the median, so a few outlier frames, rather than the calibration as a whole, account for the largest errors.
 
-In the video, the reconstructed 3D trajectories look overall good enough and follow the players consistently.
-The large error values mainly reflect the pixel scale of the high-resolution frames, so a displacement that is large in pixels is still small relative to the image size.
+In the video, the reconstructed 3D trajectories follow the players consistently.
+The metre-scale values reflect the calibration bias directly.
 As in 2D, the ball is likely the main contributor to the residual 3D error.
 
 \begin{table}[htbp]
@@ -64,9 +64,9 @@ cam\_4  & 0.638 & 0.521 & 0.553 & 0.495 \\
 \toprule
 Camera & ADE & FDE & MTE & Frag. \\
 \midrule
-cam\_13 &  976.8 &  849.8 & 1047.5 & 2 \\
-cam\_2  & 1066.0 & 1279.1 & 1181.4 & 5 \\
-cam\_4  & 1838.2 & 1689.1 & 1900.0 & 5 \\
+cam\_13 &  9976.1 &  8503.9 & 10662.2 & 2 \\
+cam\_2  &  3984.4 &  5098.8 &  4373.3 & 5 \\
+cam\_4  &  8636.7 &  7238.4 &  8739.9 & 5 \\
 \bottomrule
 \end{tabular}
 \end{minipage}
@@ -74,7 +74,7 @@ cam\_4  & 1838.2 & 1689.1 & 1900.0 & 5 \\
 
 \begin{table}[htbp]
 \centering
-\caption{Detection and calibration reprojection-error results.}
+\caption{Detection and reprojection-error results.}
 \label{tab:results-detail}
 \small
 \begin{minipage}[t]{0.49\textwidth}
@@ -96,9 +96,9 @@ cam\_4  & 0.923 & 0.822 & 0.870 & 0.796 \\
 \toprule
 Camera & Mean & Median & RMSE \\
 \midrule
-cam\_13 &  51.3 & 28.9 &  87.7 \\
-cam\_2  & 140.0 & 94.5 & 278.7 \\
-cam\_4  & 135.0 & 50.0 & 296.2 \\
+cam\_13 & 499.6 & 300.5 &  844.9 \\
+cam\_2  & 772.5 & 459.6 & 1378.8 \\
+cam\_4  & 395.3 & 176.0 &  905.4 \\
 \bottomrule
 \end{tabular}
 \end{minipage}
