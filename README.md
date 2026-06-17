@@ -2,12 +2,14 @@
 
 ## Results
 
+> 📓 **Full results and the end-to-end pipeline are in the [notebook](notebooks/main.ipynb).**
+
 ### 2D Tracking
 
 *Input (left) · Tracked output (right) · Camera 13*
 
 <div align="center">
-    <img src="docs/media/comparison.jpg" alt="Input vs tracked output comparison" width="100%">
+<img src="docs/media/comparison.jpg" alt="Input vs tracked output comparison" width="100%">
 </div>
 
 ### 3D Reconstruction
