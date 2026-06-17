@@ -3,6 +3,7 @@
 % ----- Camera calibration --------------------------------------
 \begin{frame}{3D Reconstruction: Camera Calibration}
 \begin{itemize}
+  \item \textbf{World frame:} a standard FIBA court model (true court dimensions in mm; origin at court centre).
   \item \textbf{Intrinsics:} known a priori for each camera.
   \item \textbf{Extrinsics:} estimated by solving Perspective-n-Point (PnP).
   \item PnP maps manually annotated court landmarks to their 3D world coordinates.
@@ -15,10 +16,10 @@
   \begin{column}{0.55\textwidth}
     Players and the ball are treated differently:
     \begin{itemize}
-      \item \textbf{Players:} back-project the foot pixel onto the floor plane.
+      \item \textbf{Players:} a planar homography maps the foot pixel onto court-floor coordinates.
       \begin{itemize}
         \item Floor constraint allows single-view localisation under occlusion.
-        \item Multi-view estimates averaged after discarding outliers.
+        \item Estimates fused across the three cameras after discarding outliers.
       \end{itemize}
       \item \textbf{Ball:} airborne, so triangulated from at least $2$ views.
       \begin{itemize}
