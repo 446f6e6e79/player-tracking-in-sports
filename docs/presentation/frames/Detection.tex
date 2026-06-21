@@ -1,0 +1,51 @@
+\section{Detection}
+\label{sec:detection}
+% ----- Prior work ----------------------------------------------
+\begin{frame}{Detection: Prior Work and Limitations}
+\begin{itemize}
+  \item \textbf{MOG2 background subtraction} \cite{survey} (with CLAHE \cite{clahe}):
+  \begin{itemize}
+    \item Floor specularities and shadows may evade shadow detection.
+    \item Stationary referees and players in the bench absorbed into the background.
+    \item Moving spectators produce false positives.
+  \end{itemize}
+  \item \textbf{Pre-trained YOLO26} \cite{yolo_paper}:
+  \begin{itemize}
+    \item Players and referees both labelled ``person'': no initial identity;
+    \item Need a post-processing step to assign identities.
+  \end{itemize}
+\end{itemize}
+\end{frame}
+
+% ----- Final approach (video) ----------------------------------
+\begin{frame}{Detection: Fine-Tuned YOLO26}
+\begin{columns}[T]
+  \begin{column}{0.55\textwidth}
+    \begin{itemize}
+      \item Fine-tuned on $\sim$300 hand-labelled frames from the same game (varied actions and camera views).
+      \item Per-frame identity comes straight from detection.
+      \item Ball detection is still inconsistent.
+    \end{itemize}
+  \end{column}
+  \begin{column}{0.42\textwidth}
+    \videobox
+  \end{column}
+\end{columns}
+\end{frame}
+
+% ----- Improvements --------------------------------------------
+\begin{frame}{Detection: Improvements}
+\begin{itemize}
+  \item \textbf{Dual-pass inference} (the ball occupies few pixels):
+  \begin{itemize}
+    \item Primary pass tuned for players.
+    \item High-resolution pass for ball recall.
+    \item Both outputs merged into one set of detections.
+  \end{itemize}
+  \item \textbf{Class-agnostic NMS} \cite{nms} (one player, several overlapping boxes):
+  \begin{itemize}
+    \item Rank by confidence; drop boxes overlapping a kept one (IoU).
+    \item Keeps the most confident box per player for the tracker.
+  \end{itemize}
+\end{itemize}
+\end{frame}

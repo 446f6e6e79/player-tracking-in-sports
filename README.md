@@ -2,12 +2,14 @@
 
 ## Results
 
+> 📓 **Full results and the end-to-end pipeline are in the [notebook](notebooks/main.ipynb).**
+
 ### 2D Tracking
 
 *Input (left) · Tracked output (right) · Camera 13*
 
 <div align="center">
-    <img src="docs/media/comparison.jpg" alt="Input vs tracked output comparison" width="100%">
+<img src="docs/assets/media/comparison.jpg" alt="Input vs tracked output comparison" width="100%">
 </div>
 
 ### 3D Reconstruction
@@ -24,12 +26,14 @@ https://github.com/user-attachments/assets/d35f3c35-7488-4aa2-8599-425408802872
 
 <div align="center">
     <strong>
-        <a href="docs/report.pdf">View Full Report (PDF)</a>
+        <a href="docs/report/report.pdf">View Full Report (PDF)</a>
+        &nbsp;·&nbsp;
+        <a href="docs/presentation/presentation.pdf">View Presentation (PDF)</a>
         &nbsp;·&nbsp;
         <a href="https://huggingface.co/446f6e6e79/YOLO-basketball-fineTuned">🤗 Fine-tuned model on Hugging Face</a>
     </strong><br><br>
-    <a href="docs/report.pdf">
-        <img src="docs/media/report-preview.png" width="200" alt="Report preview">
+    <a href="docs/report/report.pdf">
+        <img src="docs/assets/media/report-preview.png" width="200" alt="Report preview">
     </a>
 </div>
 
@@ -160,10 +164,10 @@ player-tracking-in-sports/
 ├── models/                       # YOLO and OSNet weights (git-ignored)
 │   └── fine_tuned_models/        # Fine-tuned checkpoints (best.pt)
 ├── results/                      # Generated detection/tracking/3D outputs (git-ignored)
-├── docs/                         # Report and LaTeX sources
-│   ├── report.pdf                # Full methodology
-│   ├── LaTeX/                    # Report sources
-│   └── media/                    # Figures and preview assets
+├── docs/                         # Report and presentation
+│   ├── report/                   # Report LaTeX sources + report.pdf
+│   ├── presentation/             # Beamer slides + build_pptx.py + presentation.pdf
+│   └── assets/                   # Shared figures, references.bib, logo
 ├── requirements.txt
 └── README.md
 ```

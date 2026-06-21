@@ -53,16 +53,18 @@ class ReprojectionMetrics:
     """
     Standard reprojection-quality metrics computed in image space.
     Predicted 3D points are projected into the camera image plane and
-    compared against GT annotated 2D positions.
+    compared against GT annotated 2D positions. The image-plane pixel error is
+    scaled to a physical distance (mm/px = Z / f at the point's camera-frame
+    depth Z), so all values are reported in millimeters.
     """
-    mean_error_px: float              # Mean reprojection error (pixels)
-    median_error_px: float            # Median reprojection error (pixels)
-    std_error_px: float               # Standard deviation of reprojection error
-    rmse_px: float                    # Root Mean Squared reprojection error
+    mean_error_mm: float              # Mean reprojection error (mm)
+    median_error_mm: float            # Median reprojection error (mm)
+    std_error_mm: float               # Standard deviation of reprojection error (mm)
+    rmse_mm: float                    # Root Mean Squared reprojection error (mm)
 
-    accuracy_at_5px: float            # Fraction of projections with error < 5 px
-    accuracy_at_10px: float           # Fraction of projections with error < 10 px
-    accuracy_at_20px: float           # Fraction of projections with error < 20 px
+    accuracy_at_25mm: float           # Fraction of projections with error < 25 mm
+    accuracy_at_50mm: float           # Fraction of projections with error < 50 mm
+    accuracy_at_100mm: float          # Fraction of projections with error < 100 mm
 
 @dataclass
 class TrajectoryMetrics:
@@ -70,11 +72,12 @@ class TrajectoryMetrics:
     Temporal trajectory evaluation metrics.
 
     Computed on trajectories over time after associating predicted tracks
-    with GT trajectories.
+    with GT trajectories. The image-plane displacement is scaled to a physical
+    distance (mm/px = Z / f at the predicted point's depth), so values are in mm.
     """
-    ade_px: float                     # Average Displacement Error
-    fde_px: float                     # Final Displacement Error
-    mte_px: float                     # Median Trajectory Error
+    ade_mm: float                     # Average Displacement Error (mm)
+    fde_mm: float                     # Final Displacement Error (mm)
+    mte_mm: float                     # Median Trajectory Error (mm)
 
     total_trajectories: int           # Number of evaluated trajectories
     trajectory_fragments: int         # Number of interrupted trajectories

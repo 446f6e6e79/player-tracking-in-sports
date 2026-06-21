@@ -1,5 +1,5 @@
 """
-Fine-tune YOLOv26m on a Roboflow YOLO-format dataset.
+Fine-tune YOLO26m on a Roboflow YOLO-format dataset.
 Designed to run on a Colab GPU.
 
 IMPORTANT: training images must be DISJOINT from the videos used at inference time 
@@ -40,7 +40,7 @@ logger = get_logger(__name__)
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Fine-tune YOLOv26m on a Roboflow YOLO-format dataset."
+        description="Fine-tune YOLO26m on a Roboflow YOLO-format dataset."
     )
     p.add_argument("--data", required=True, help="Path to data.yaml from the Roboflow export")
     p.add_argument("--model", default=None, help="Starting weights (default: from config)")
