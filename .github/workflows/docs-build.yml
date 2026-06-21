@@ -1,5 +1,5 @@
 name: Docs Build
-# Compiles the LaTeX report when a PR targets main and edits docs/LaTeX or this file.
+# Compiles the LaTeX report and presentation when a PR targets main and edits docs sources or this file.
 on:
   pull_request:
     branches:
@@ -9,7 +9,9 @@ on:
       - synchronize
       - reopened
     paths:
-      - "docs/LaTeX/**"
+      - "docs/report/**"
+      - "docs/presentation/**"
+      - "docs/assets/**"
       - ".github/workflows/docs-build.yml"
 
 permissions:
@@ -29,25 +31,33 @@ jobs:
         uses: xu-cheng/latex-action@v3
         with:
           root_file: report.tex
-          working_directory: docs/LaTeX
+          working_directory: docs/report
+        env:
+          BIBINPUTS: "../assets:"
+
+      - name: Compile presentation LaTeX document
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: presentation.tex
+          working_directory: docs/presentation
+        env:
+          BIBINPUTS: "../assets:"
 
       - name: Install preview generation dependencies
         run: sudo apt-get update && sudo apt-get install -y poppler-utils
 
-      - name: Update PDF and preview
+      - name: Update report preview
         run: |
-          mkdir -p docs/media
-          cp docs/LaTeX/report.pdf docs/report.pdf
-          pdftoppm -png -singlefile -f 1 docs/LaTeX/report.pdf docs/media/report-preview
+          pdftoppm -png -singlefile -f 1 docs/report/report.pdf docs/assets/media/report-preview
 
-      - name: Commit generated PDF and preview
+      - name: Commit generated PDFs and preview
         run: |
           git config user.name "[GitHub Actions]LaTeX Builder Bot"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/report.pdf docs/media/report-preview.png
+          git add docs/report/report.pdf docs/presentation/presentation.pdf docs/assets/media/report-preview.png
           if git diff --cached --quiet; then
             echo "No generated file changes to commit"
             exit 0
           fi
-          git commit -m "docs: update generated PDF and preview [skip ci]"
+          git commit -m "docs: update generated PDFs and preview [skip ci]"
           git push origin "HEAD:${{ github.event.pull_request.head.ref }}" || echo "Push failed (likely fork PR permissions or branch protections)."
